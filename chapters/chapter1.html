@@ -71,14 +71,14 @@
       <p class="lede">You are a dendritic cell. Collect each of the 5 bacteria types and deliver them to the lymph node. Worth <strong>100<i class="atp-icon"></i></strong>.</p>
 
       <div id="g2-start" class="game-start">
-        <p>10 bacteria spawn — uneven mix (e.g. 3 red, 2 blue, 1 yellow…). Move with the joystick (or arrow keys), touch a bacterium to grab it, then enter the lymph node to deliver. Only the <strong>first</strong> of each color scores — duplicates are wasted. Faster = more <i class="atp-icon"></i>, cap 100.</p>
+        <p>13 bacteria spawn in 6 colors — uneven mix (e.g. 3 red, 2 blue, 1 yellow…). Move with the joystick (or arrow keys), touch a bacterium to grab it, then enter the lymph node to deliver. Only the <strong>first</strong> of each color scores — duplicates are wasted. Faster = more <i class="atp-icon"></i>, cap 100.</p>
         <button class="btn" id="g2-start-btn">Start game</button>
       </div>
 
       <div id="g2-play" class="game-play" hidden>
         <div class="hud">
           <span>Time <b id="g2-time">60.0</b>s</span>
-          <span class="good">Delivered <b id="g2-delivered">0</b>/5</span>
+          <span class="good">Delivered <b id="g2-delivered">0</b>/6</span>
           <span>Carrying: <b id="g2-carry">—</b></span>
         </div>
         <div class="game-stage">
@@ -338,6 +338,7 @@
     state = newRound(1, 0);
     atpEl.textContent = 0; roundEl.textContent = 1;
     attachInput();
+    setTimeout(() => { if (state) { size(); draw(); } }, 250);
     requestAnimationFrame((t)=>{ state.lastTs=t; loop(t); });
   }, { label: 'Start game' });
   window.addEventListener('resize', () => { if (state && !state.locked) { size(); draw(); } });
@@ -358,8 +359,10 @@
   const deliveredEl = document.getElementById('g2-delivered');
   const carryEl = document.getElementById('g2-carry');
 
-  const COLORS = ['#ff7676','#64b5f6','#7be0c8','#ffd54f','#ba68c8'];
-  const NAMES  = ['Red','Blue','Teal','Yellow','Purple'];
+  const COLORS = ['#ff7676','#64b5f6','#7be0c8','#ffd54f','#ba68c8','#ff8a65'];
+  const NAMES  = ['Red','Blue','Teal','Yellow','Purple','Orange'];
+  const TOTAL_TYPES = COLORS.length; // 6
+  const TOTAL_BACT  = 13;
 
   let ctx, W, H, dpr, state, raf;
 
@@ -377,24 +380,26 @@
   }
 
   function newState(){
-    // 10 bacteria total, uneven type distribution: guarantee 1 of each color, then 5 random extras
-    const colorAssign = [0,1,2,3,4];
-    for (let i=0;i<5;i++) colorAssign.push(Math.floor(Math.random()*5));
-    // shuffle so the guaranteed ones aren't all in the same spawn region
+    // 13 bacteria total — guarantee one of each of the 6 types,
+    // then 7 random extras for the uneven distribution feel.
+    const colorAssign = [];
+    for (let i=0; i<TOTAL_TYPES; i++) colorAssign.push(i);
+    while (colorAssign.length < TOTAL_BACT) colorAssign.push(Math.floor(Math.random()*TOTAL_TYPES));
     for (let i = colorAssign.length-1; i > 0; i--) {
       const j = Math.floor(Math.random()*(i+1));
       [colorAssign[i], colorAssign[j]] = [colorAssign[j], colorAssign[i]];
     }
+    const margin = 30;
     const bacteria = colorAssign.map(c => ({
       color: c,
-      x: 80 + Math.random()*(W-160),
-      y: 120 + Math.random()*(H-200),
-      vx: (Math.random()*2-1)*50,
-      vy: (Math.random()*2-1)*50,
+      x: margin + Math.random()*(W - margin*2),
+      y: 110 + Math.random()*(H - 180),
+      vx: (Math.random()*2-1)*45,
+      vy: (Math.random()*2-1)*45,
       alive: true
     }));
     return {
-      player: { x: W/2, y: H-60, r: 22 },
+      player: { x: W/2, y: H-60, r: 20 },
       bacteria,
       lymph: { x: W-70, y: 70, r: 50 },
       carrying: -1,
@@ -421,8 +426,8 @@
     state.bacteria.forEach(b => {
       if (!b.alive) return;
       ctx.fillStyle = COLORS[b.color]; ctx.strokeStyle='#1a2433'; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.ellipse(b.x, b.y, 14, 9, b.angle||0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(b.x+10, b.y); ctx.quadraticCurveTo(b.x+22, b.y-6, b.x+28, b.y+4);
+      ctx.beginPath(); ctx.ellipse(b.x, b.y, 10, 6, b.angle||0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(b.x+7, b.y); ctx.quadraticCurveTo(b.x+15, b.y-4, b.x+20, b.y+3);
       ctx.strokeStyle = COLORS[b.color]; ctx.stroke();
     });
     // dendritic player
@@ -456,8 +461,12 @@
     state.bacteria.forEach(b => {
       if (!b.alive) return;
       b.x += b.vx*dt; b.y += b.vy*dt;
-      if (b.x < 20 || b.x > W-20) b.vx *= -1;
-      if (b.y < 20 || b.y > H-20) b.vy *= -1;
+      // Firm clamp — bounces AND snaps inside, so a canvas resize
+      // can't leave bacteria outside the visible area.
+      if (b.x < 14) { b.x = 14; b.vx = Math.abs(b.vx); }
+      if (b.x > W-14) { b.x = W-14; b.vx = -Math.abs(b.vx); }
+      if (b.y < 14) { b.y = 14; b.vy = Math.abs(b.vy); }
+      if (b.y > H-14) { b.y = H-14; b.vy = -Math.abs(b.vy); }
       if (Math.random() < 0.015) { b.vx += (Math.random()*2-1)*20; b.vy += (Math.random()*2-1)*20; }
       b.vx = Math.max(-90, Math.min(90, b.vx));
       b.vy = Math.max(-90, Math.min(90, b.vy));
@@ -479,7 +488,7 @@
         state.carrying = -1;
         carryEl.textContent = '—'; carryEl.style.color='';
         deliveredEl.textContent = state.delivered.size;
-        if (state.delivered.size >= 5) return finishGame();
+        if (state.delivered.size >= TOTAL_TYPES) return finishGame();
       }
     }
   }
@@ -502,10 +511,10 @@
     playPanel.hidden = true; resultPanel.hidden = false;
     const uniques = state.delivered.size;
     const tbonus = Math.max(0, Math.floor(state.time));
-    let atp = uniques*12 + tbonus;
+    let atp = uniques*10 + tbonus;        // 6×10 + up to 40 time bonus
     atp = Math.min(100, atp);
     resultPanel.innerHTML = `<h2>You earned <strong>${atp} <i class="atp-icon atp-icon-lg spin"></i></strong></h2>
-      <p>${uniques}/5 unique colors delivered · ${tbonus}s remaining bonus.</p>
+      <p>${uniques}/${TOTAL_TYPES} unique colors delivered · ${tbonus}s remaining bonus.</p>
       <button class="btn" id="g2-retry">Play again</button>`;
     document.getElementById('g2-retry').onclick = () => {
       resultPanel.hidden = true; startPanel.hidden = false;
@@ -556,10 +565,24 @@
     size();
     state = newState();
     deliveredEl.textContent = 0; carryEl.textContent = '—';
+    // Re-measure after fullscreen layout fully settles (mobile orientation safe)
+    setTimeout(() => { if (state) { size(); clampToBounds(); } }, 250);
     requestAnimationFrame(loop);
   }, { label: 'Start game' });
   attachJoystick();
-  window.addEventListener('resize', () => { if (state) { size(); draw(); } });
+  function clampToBounds(){
+    if (!state) return;
+    state.bacteria.forEach(b => {
+      b.x = Math.max(14, Math.min(W-14, b.x));
+      b.y = Math.max(14, Math.min(H-14, b.y));
+    });
+    state.player.x = Math.max(state.player.r, Math.min(W-state.player.r, state.player.x));
+    state.player.y = Math.max(state.player.r, Math.min(H-state.player.r, state.player.y));
+    state.lymph.x = W - 70;  // anchor lymph node to top-right corner of current canvas
+  }
+  window.addEventListener('resize', () => { if (state) { size(); clampToBounds(); draw(); } });
+  // Also re-size + clamp once the fullscreen layout has applied
+  document.addEventListener('animationend', () => { if (state) { size(); clampToBounds(); } });
 })();
 
 /* ============================================================

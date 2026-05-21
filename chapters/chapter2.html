@@ -158,10 +158,25 @@
   };
 
   /* Each virus defines:
-     - parts:  required components (in display order)
+     - parts:  required components
      - atp:    reward when complete
      - svg(f): function returning an SVG string. f is a map of partKey→bool
-     - slots:  hit-test boxes for drag-drop, in viewBox coordinates  */
+     - slots:  hit-test boxes in viewBox coordinates
+     Rule: every part renders ALWAYS — dashed outline when missing,
+     solid colored when filled. Missing-outline groups are drawn AFTER
+     filled groups so the player can always see what's still needed. */
+  function partAttrs(partKey, filled, opts) {
+    opts = opts || {};
+    const c = PARTS[partKey].color;
+    const fillVal = filled
+      ? c
+      : 'none';
+    const fillOp  = filled ? (opts.fillOp || 1) : 0;
+    const sw = filled ? (opts.swFilled || 2.5) : (opts.swEmpty || 2.5);
+    const dash = filled ? '0' : (opts.dash || '5 4');
+    return `fill="${fillVal}" fill-opacity="${fillOp}" stroke="${c}" stroke-width="${sw}" stroke-dasharray="${dash}"`;
+  }
+
   const VIRUSES = {
     lambda: {
       name: 'Bacteriophage Lambda',
@@ -177,16 +192,29 @@
         tailfibers:{ x: 30, y: 190, w: 140, h: 70 },
       },
       svg(f) {
+        const hexPts = [0,60,120,180,240,300].map(a=>{
+          const r=40, cx=100, cy=45, rad=a*Math.PI/180;
+          return `${(cx+Math.cos(rad)*r).toFixed(1)},${(cy+Math.sin(rad)*r).toFixed(1)}`;
+        }).join(' ');
         return `<svg viewBox="0 0 200 280" xmlns="http://www.w3.org/2000/svg">
-          ${shapeHex(100, 45, 40, 'capsid', f.capsid)}
-          ${f.dna ? `<path d="M86 30 Q100 50 86 70 Q72 50 86 30" fill="none" stroke="${PARTS.dna.color}" stroke-width="3"/>` : ''}
-          <rect x="88" y="82" width="24" height="22" fill="${f.neck?PARTS.neck.color:'none'}" stroke="${PARTS.neck.color}" stroke-width="2.5" stroke-dasharray="${f.neck?'0':'4 3'}"/>
-          <rect x="82" y="108" width="36" height="60" rx="3" fill="${f.tailsheath?PARTS.tailsheath.color:'none'}" stroke="${PARTS.tailsheath.color}" stroke-width="2.5" stroke-dasharray="${f.tailsheath?'0':'4 3'}"/>
-          ${f.tailsheath?`<line x1="100" y1="115" x2="100" y2="160" stroke="#1a2433" stroke-width="1" opacity=".3"/>`:''}
-          <rect x="64" y="172" width="72" height="14" rx="4" fill="${f.baseplate?PARTS.baseplate.color:'none'}" stroke="${PARTS.baseplate.color}" stroke-width="2.5" stroke-dasharray="${f.baseplate?'0':'4 3'}"/>
-          ${[[68,186,40,260],[100,186,100,265],[132,186,160,260]].map(([x1,y1,x2,y2]) =>
-            `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${PARTS.tailfibers.color}" stroke-width="${f.tailfibers?3:2.5}" stroke-dasharray="${f.tailfibers?'0':'4 3'}" stroke-linecap="round"/>
-             ${f.tailfibers?`<circle cx="${x2}" cy="${y2}" r="3" fill="${PARTS.tailfibers.color}"/>`:''}`).join('')}
+          <!-- Layer 1: filled parts first -->
+          ${f.capsid    ? `<polygon points="${hexPts}" ${partAttrs('capsid',true,{fillOp:.6})}/>` : ''}
+          ${f.dna       ? `<path d="M86 25 Q100 45 86 65 Q72 45 86 25 M114 25 Q100 45 114 65 Q128 45 114 25" fill="none" stroke="${PARTS.dna.color}" stroke-width="3"/>` : ''}
+          ${f.neck      ? `<rect x="88" y="82" width="24" height="22" ${partAttrs('neck',true)}/>` : ''}
+          ${f.tailsheath? `<rect x="82" y="108" width="36" height="60" rx="3" ${partAttrs('tailsheath',true)}/>
+                           <line x1="100" y1="115" x2="100" y2="160" stroke="#1a2433" stroke-width="1" opacity=".3"/>` : ''}
+          ${f.baseplate ? `<rect x="64" y="172" width="72" height="14" rx="4" ${partAttrs('baseplate',true)}/>` : ''}
+          ${f.tailfibers? [[68,186,40,260],[100,186,100,265],[132,186,160,260]].map(([x1,y1,x2,y2])=>
+              `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${PARTS.tailfibers.color}" stroke-width="3" stroke-linecap="round"/>
+               <circle cx="${x2}" cy="${y2}" r="4" fill="${PARTS.tailfibers.color}"/>`).join('') : ''}
+          <!-- Layer 2: missing-part outlines on top -->
+          ${!f.capsid    ? `<polygon points="${hexPts}" ${partAttrs('capsid',false)}/>` : ''}
+          ${!f.dna       ? `<path d="M86 25 Q100 45 86 65 Q72 45 86 25" fill="none" stroke="${PARTS.dna.color}" stroke-width="2.5" stroke-dasharray="4 3"/>` : ''}
+          ${!f.neck      ? `<rect x="88" y="82" width="24" height="22" ${partAttrs('neck',false,{dash:'4 3'})}/>` : ''}
+          ${!f.tailsheath? `<rect x="82" y="108" width="36" height="60" rx="3" ${partAttrs('tailsheath',false,{dash:'4 3'})}/>` : ''}
+          ${!f.baseplate ? `<rect x="64" y="172" width="72" height="14" rx="4" ${partAttrs('baseplate',false,{dash:'4 3'})}/>` : ''}
+          ${!f.tailfibers? [[68,186,40,260],[100,186,100,265],[132,186,160,260]].map(([x1,y1,x2,y2])=>
+              `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${PARTS.tailfibers.color}" stroke-width="2.5" stroke-dasharray="4 3" stroke-linecap="round"/>`).join('') : ''}
         </svg>`;
       }
     },
@@ -197,25 +225,35 @@
       viewBox: '0 0 200 220',
       slots: {
         envelope: { x: 20, y: 30, w: 160, h: 160 },
-        glyco:    { x: 20, y: 30, w: 160, h: 30 },
+        glyco:    { x: 20, y: 25, w: 160, h: 36 },
         capsid:   { x: 70, y: 80, w: 60,  h: 90 },
         rna:      { x: 80, y: 100, w: 40, h: 60 },
-        rt:       { x: 110, y: 130, w: 30, h: 30 },
+        rt:       { x: 108, y: 128, w: 26, h: 22 },
       },
       svg(f) {
+        const spikes = [20,55,90,125,160,195,230,265,300,335].map(a=>{
+          const rad=a*Math.PI/180;
+          return {
+            cx: (100+Math.cos(rad)*78).toFixed(1),
+            cy: (110+Math.sin(rad)*78).toFixed(1),
+            bx: (100+Math.cos(rad)*92).toFixed(1),
+            by: (110+Math.sin(rad)*92).toFixed(1),
+          };
+        });
         return `<svg viewBox="0 0 200 220" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="100" cy="110" r="78" fill="${f.envelope?PARTS.envelope.color:'none'}" fill-opacity=".25" stroke="${PARTS.envelope.color}" stroke-width="2.5" stroke-dasharray="${f.envelope?'0':'5 4'}"/>
-          ${[20,55,90,125,160,195,230,265,300,335].map(a => {
-            const rad = a*Math.PI/180, cx=100+Math.cos(rad)*78, cy=110+Math.sin(rad)*78;
-            const bx=100+Math.cos(rad)*92, by=110+Math.sin(rad)*92;
-            return `<line x1="${cx.toFixed(1)}" y1="${cy.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="${PARTS.glyco.color}" stroke-width="${f.glyco?3:2.5}" stroke-dasharray="${f.glyco?'0':'3 2'}" stroke-linecap="round"/>
-                    ${f.glyco?`<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="5" fill="${PARTS.glyco.color}"/>`:''}`;
-          }).join('')}
-          <polygon points="70,80 130,80 115,170 85,170" fill="${f.capsid?PARTS.capsid.color:'none'}" fill-opacity=".7" stroke="${PARTS.capsid.color}" stroke-width="2.5" stroke-dasharray="${f.capsid?'0':'4 3'}"/>
-          ${f.rna?`<path d="M88 100 Q102 110 92 125 Q102 140 88 155" fill="none" stroke="${PARTS.rna.color}" stroke-width="2.5"/>
-                  <path d="M112 100 Q98 110 108 125 Q98 140 112 155" fill="none" stroke="${PARTS.rna.color}" stroke-width="2.5"/>`:''}
-          ${f.rt?`<ellipse cx="118" cy="138" rx="9" ry="6" fill="${PARTS.rt.color}" stroke="#1a2433" stroke-width="1"/>
-                  <text x="118" y="142" text-anchor="middle" font-size="7" fill="#1a2433" font-weight="bold">RT</text>`:''}
+          ${f.envelope ? `<circle cx="100" cy="110" r="78" ${partAttrs('envelope',true,{fillOp:.3})}/>` : ''}
+          ${f.glyco    ? spikes.map(s=>`<line x1="${s.cx}" y1="${s.cy}" x2="${s.bx}" y2="${s.by}" stroke="${PARTS.glyco.color}" stroke-width="3" stroke-linecap="round"/><circle cx="${s.bx}" cy="${s.by}" r="5" fill="${PARTS.glyco.color}"/>`).join('') : ''}
+          ${f.capsid   ? `<polygon points="70,80 130,80 115,170 85,170" ${partAttrs('capsid',true,{fillOp:.7})}/>` : ''}
+          ${f.rna      ? `<path d="M88 100 Q102 110 92 125 Q102 140 88 155" fill="none" stroke="${PARTS.rna.color}" stroke-width="2.5"/>
+                          <path d="M112 100 Q98 110 108 125 Q98 140 112 155" fill="none" stroke="${PARTS.rna.color}" stroke-width="2.5"/>` : ''}
+          ${f.rt       ? `<ellipse cx="118" cy="138" rx="10" ry="7" fill="${PARTS.rt.color}" stroke="#1a2433" stroke-width="1"/>
+                          <text x="118" y="142" text-anchor="middle" font-size="7" fill="#fff" font-weight="bold">RT</text>` : ''}
+          <!-- Outlines for missing parts -->
+          ${!f.envelope ? `<circle cx="100" cy="110" r="78" ${partAttrs('envelope',false)}/>` : ''}
+          ${!f.glyco    ? spikes.map(s=>`<line x1="${s.cx}" y1="${s.cy}" x2="${s.bx}" y2="${s.by}" stroke="${PARTS.glyco.color}" stroke-width="2.5" stroke-dasharray="3 2" stroke-linecap="round"/>`).join('') : ''}
+          ${!f.capsid   ? `<polygon points="70,80 130,80 115,170 85,170" ${partAttrs('capsid',false,{dash:'4 3'})}/>` : ''}
+          ${!f.rna      ? `<path d="M88 100 Q102 110 92 125 Q102 140 88 155 M112 100 Q98 110 108 125 Q98 140 112 155" fill="none" stroke="${PARTS.rna.color}" stroke-width="2" stroke-dasharray="4 3"/>` : ''}
+          ${!f.rt       ? `<ellipse cx="118" cy="138" rx="10" ry="7" fill="none" stroke="${PARTS.rt.color}" stroke-width="2" stroke-dasharray="3 2"/>` : ''}
         </svg>`;
       }
     },
@@ -226,26 +264,47 @@
       viewBox: '0 0 200 200',
       slots: {
         envelope: { x: 30, y: 30, w: 140, h: 140 },
-        glyco:    { x: 30, y: 30, w: 140, h: 30 },
+        glyco:    { x: 20, y: 18, w: 160, h: 30 },
         capsid:   { x: 75, y: 75, w: 50, h: 50 },
         rna:      { x: 80, y: 80, w: 40, h: 40 },
       },
       svg(f) {
+        const spikes = [];
+        for (let i=0; i<14; i++) {
+          const a = i * 360/14, rad = a*Math.PI/180;
+          spikes.push({
+            cx: (100+Math.cos(rad)*62).toFixed(1),
+            cy: (100+Math.sin(rad)*62).toFixed(1),
+            bx: (100+Math.cos(rad)*78).toFixed(1),
+            by: (100+Math.sin(rad)*78).toFixed(1),
+            isHA: i%2===0
+          });
+        }
+        const rnaSegments = [];
+        for (let i=0; i<8; i++) {
+          const a = i*Math.PI/4;
+          rnaSegments.push({
+            x1: (100+Math.cos(a)*6).toFixed(1),
+            y1: (100+Math.sin(a)*6).toFixed(1),
+            x2: (100+Math.cos(a)*18).toFixed(1),
+            y2: (100+Math.sin(a)*18).toFixed(1)
+          });
+        }
         return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="100" cy="100" r="62" fill="${f.envelope?PARTS.envelope.color:'none'}" fill-opacity=".25" stroke="${PARTS.envelope.color}" stroke-width="2.5" stroke-dasharray="${f.envelope?'0':'5 4'}"/>
-          ${Array.from({length:14},(_,i)=>i*360/14).map(a => {
-            const rad = a*Math.PI/180, cx=100+Math.cos(rad)*62, cy=100+Math.sin(rad)*62;
-            const bx=100+Math.cos(rad)*78, by=100+Math.sin(rad)*78;
-            const isHA = i%2===0;
-            return `<line x1="${cx.toFixed(1)}" y1="${cy.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="${PARTS.glyco.color}" stroke-width="${f.glyco?3:2.5}" stroke-dasharray="${f.glyco?'0':'3 2'}" stroke-linecap="round"/>
-                    ${f.glyco?`<${isHA?'rect':'circle'} ${isHA?`x="${(bx-3).toFixed(1)}" y="${(by-3).toFixed(1)}" width="6" height="6"`:`cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="3.5"`} fill="${PARTS.glyco.color}"/>`:''}`;
-          }).join('')}
-          <circle cx="100" cy="100" r="24" fill="${f.capsid?PARTS.capsid.color:'none'}" fill-opacity=".6" stroke="${PARTS.capsid.color}" stroke-width="2.5" stroke-dasharray="${f.capsid?'0':'4 3'}"/>
-          ${f.rna?Array.from({length:8},(_,i)=>{
-            const a=i*Math.PI/4, x1=100+Math.cos(a)*6, y1=100+Math.sin(a)*6;
-            const x2=100+Math.cos(a)*18, y2=100+Math.sin(a)*18;
-            return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${PARTS.rna.color}" stroke-width="2"/>`;
-          }).join(''):''}
+          ${f.envelope ? `<circle cx="100" cy="100" r="62" ${partAttrs('envelope',true,{fillOp:.3})}/>` : ''}
+          ${f.glyco    ? spikes.map(s=>{
+            const tip = s.isHA
+              ? `<rect x="${(parseFloat(s.bx)-4).toFixed(1)}" y="${(parseFloat(s.by)-4).toFixed(1)}" width="8" height="8" fill="${PARTS.glyco.color}"/>`
+              : `<circle cx="${s.bx}" cy="${s.by}" r="4" fill="${PARTS.glyco.color}"/>`;
+            return `<line x1="${s.cx}" y1="${s.cy}" x2="${s.bx}" y2="${s.by}" stroke="${PARTS.glyco.color}" stroke-width="3" stroke-linecap="round"/>${tip}`;
+          }).join('') : ''}
+          ${f.capsid   ? `<circle cx="100" cy="100" r="24" ${partAttrs('capsid',true,{fillOp:.7})}/>` : ''}
+          ${f.rna      ? rnaSegments.map(r=>`<line x1="${r.x1}" y1="${r.y1}" x2="${r.x2}" y2="${r.y2}" stroke="${PARTS.rna.color}" stroke-width="2.5"/>`).join('') : ''}
+          <!-- Outlines for missing parts on top -->
+          ${!f.envelope ? `<circle cx="100" cy="100" r="62" ${partAttrs('envelope',false)}/>` : ''}
+          ${!f.glyco    ? spikes.map(s=>`<line x1="${s.cx}" y1="${s.cy}" x2="${s.bx}" y2="${s.by}" stroke="${PARTS.glyco.color}" stroke-width="2.5" stroke-dasharray="3 2" stroke-linecap="round"/>`).join('') : ''}
+          ${!f.capsid   ? `<circle cx="100" cy="100" r="24" ${partAttrs('capsid',false,{dash:'4 3'})}/>` : ''}
+          ${!f.rna      ? rnaSegments.map(r=>`<line x1="${r.x1}" y1="${r.y1}" x2="${r.x2}" y2="${r.y2}" stroke="${PARTS.rna.color}" stroke-width="2" stroke-dasharray="3 2"/>`).join('') : ''}
         </svg>`;
       }
     },
@@ -256,23 +315,25 @@
       viewBox: '0 0 300 110',
       slots: {
         envelope: { x: 10, y: 35, w: 280, h: 40 },
-        glyco:    { x: 10, y: 18, w: 280, h: 22 },
+        glyco:    { x: 10, y: 12, w: 280, h: 22 },
         capsid:   { x: 30, y: 45, w: 240, h: 20 },
         rna:      { x: 35, y: 50, w: 230, h: 10 },
       },
       svg(f) {
+        const spikes = [40,70,100,130,160,190,220,250].map(x => ({
+          x, yTop: 30 + Math.sin(x*0.1)*5
+        }));
+        const envPath = "M20 55 Q30 30 70 40 Q120 50 170 35 Q230 25 280 55 Q230 85 170 75 Q120 60 70 70 Q30 80 20 55 Z";
         return `<svg viewBox="0 0 300 110" xmlns="http://www.w3.org/2000/svg">
-          <path d="M20 55 Q30 30 70 40 Q120 50 170 35 Q230 25 280 55 Q230 85 170 75 Q120 60 70 70 Q30 80 20 55 Z"
-                fill="${f.envelope?PARTS.envelope.color:'none'}" fill-opacity=".2"
-                stroke="${PARTS.envelope.color}" stroke-width="2.5" stroke-dasharray="${f.envelope?'0':'5 4'}"/>
-          ${[40,70,100,130,160,190,220,250].map(x => {
-            const yTop = 30 + Math.sin(x*0.1)*5;
-            return `<line x1="${x}" y1="${yTop-12}" x2="${x}" y2="${yTop}" stroke="${PARTS.glyco.color}" stroke-width="${f.glyco?3:2.5}" stroke-dasharray="${f.glyco?'0':'3 2'}" stroke-linecap="round"/>
-                    ${f.glyco?`<circle cx="${x}" cy="${yTop-14}" r="3" fill="${PARTS.glyco.color}"/>`:''}`;
-          }).join('')}
-          <rect x="35" y="48" width="230" height="14" rx="6" fill="${f.capsid?PARTS.capsid.color:'none'}" fill-opacity=".6" stroke="${PARTS.capsid.color}" stroke-width="2.5" stroke-dasharray="${f.capsid?'0':'4 3'}"/>
-          ${f.rna?`<path d="M40 55 Q60 50 80 55 Q100 60 120 55 Q140 50 160 55 Q180 60 200 55 Q220 50 240 55 Q255 58 260 55"
-                fill="none" stroke="${PARTS.rna.color}" stroke-width="2.2"/>`:''}
+          ${f.envelope ? `<path d="${envPath}" ${partAttrs('envelope',true,{fillOp:.3})}/>` : ''}
+          ${f.glyco    ? spikes.map(s=>`<line x1="${s.x}" y1="${s.yTop-14}" x2="${s.x}" y2="${s.yTop}" stroke="${PARTS.glyco.color}" stroke-width="3" stroke-linecap="round"/><circle cx="${s.x}" cy="${s.yTop-16}" r="3.5" fill="${PARTS.glyco.color}"/>`).join('') : ''}
+          ${f.capsid   ? `<rect x="35" y="48" width="230" height="14" rx="6" ${partAttrs('capsid',true,{fillOp:.7})}/>` : ''}
+          ${f.rna      ? `<path d="M40 55 Q60 50 80 55 Q100 60 120 55 Q140 50 160 55 Q180 60 200 55 Q220 50 240 55 Q255 58 260 55" fill="none" stroke="${PARTS.rna.color}" stroke-width="2.5"/>` : ''}
+          <!-- Outlines -->
+          ${!f.envelope ? `<path d="${envPath}" ${partAttrs('envelope',false)}/>` : ''}
+          ${!f.glyco    ? spikes.map(s=>`<line x1="${s.x}" y1="${s.yTop-14}" x2="${s.x}" y2="${s.yTop}" stroke="${PARTS.glyco.color}" stroke-width="2.5" stroke-dasharray="3 2" stroke-linecap="round"/>`).join('') : ''}
+          ${!f.capsid   ? `<rect x="35" y="48" width="230" height="14" rx="6" ${partAttrs('capsid',false,{dash:'4 3'})}/>` : ''}
+          ${!f.rna      ? `<line x1="40" y1="55" x2="260" y2="55" stroke="${PARTS.rna.color}" stroke-width="2" stroke-dasharray="3 2"/>` : ''}
         </svg>`;
       }
     },
@@ -286,13 +347,13 @@
         rna:    { x: 25, y: 35, w: 250, h: 20 },
       },
       svg(f) {
+        const subunits = Array.from({length:13},(_,i)=>25 + i*20);
+        const rnaPath = "M30 45 Q45 38 60 45 Q75 52 90 45 Q105 38 120 45 Q135 52 150 45 Q165 38 180 45 Q195 52 210 45 Q225 38 240 45 Q255 52 270 45";
         return `<svg viewBox="0 0 300 90" xmlns="http://www.w3.org/2000/svg">
-          ${Array.from({length:13},(_,i)=>{
-            const x = 25 + i*20;
-            return `<rect x="${x}" y="28" width="18" height="34" rx="3" fill="${f.capsid?PARTS.capsid.color:'none'}" fill-opacity=".7" stroke="${PARTS.capsid.color}" stroke-width="2" stroke-dasharray="${f.capsid?'0':'4 3'}"/>`;
-          }).join('')}
-          ${f.rna?`<path d="M30 45 Q45 38 60 45 Q75 52 90 45 Q105 38 120 45 Q135 52 150 45 Q165 38 180 45 Q195 52 210 45 Q225 38 240 45 Q255 52 270 45"
-                fill="none" stroke="${PARTS.rna.color}" stroke-width="2.5"/>`:''}
+          ${f.capsid ? subunits.map(x=>`<rect x="${x}" y="28" width="18" height="34" rx="3" ${partAttrs('capsid',true,{fillOp:.7})}/>`).join('') : ''}
+          ${f.rna    ? `<path d="${rnaPath}" fill="none" stroke="${PARTS.rna.color}" stroke-width="2.5"/>` : ''}
+          ${!f.capsid ? subunits.map(x=>`<rect x="${x}" y="28" width="18" height="34" rx="3" ${partAttrs('capsid',false,{dash:'4 3'})}/>`).join('') : ''}
+          ${!f.rna    ? `<path d="${rnaPath}" fill="none" stroke="${PARTS.rna.color}" stroke-width="2" stroke-dasharray="4 3"/>` : ''}
         </svg>`;
       }
     },
@@ -307,25 +368,26 @@
         pins:   { x: 10, y: 10, w: 180, h: 200 },
       },
       svg(f) {
-        // Icosahedral-ish: a hex outline with internal triangular faces
         const cx = 100, cy = 100, r = 65;
         const hexPts = [0,60,120,180,240,300].map(a => {
           const rad = a*Math.PI/180;
           return [cx+Math.cos(rad)*r, cy+Math.sin(rad)*r];
         });
+        const hexStr = hexPts.map(p=>p.join(',')).join(' ');
+        const pinEnds = hexPts.map(p=>{
+          const dx = p[0]-cx, dy = p[1]-cy;
+          const len = Math.hypot(dx,dy);
+          return { x: p[0], y: p[1], ex: cx + dx/len*(r+22), ey: cy + dy/len*(r+22) };
+        });
         return `<svg viewBox="0 0 200 220" xmlns="http://www.w3.org/2000/svg">
-          <polygon points="${hexPts.map(p=>p.join(',')).join(' ')}"
-                   fill="${f.capsid?PARTS.capsid.color:'none'}" fill-opacity=".55"
-                   stroke="${PARTS.capsid.color}" stroke-width="2.5" stroke-dasharray="${f.capsid?'0':'4 3'}"/>
-          ${f.capsid?hexPts.map(p=>`<line x1="${cx}" y1="${cy}" x2="${p[0].toFixed(1)}" y2="${p[1].toFixed(1)}" stroke="#1a2433" stroke-width="1" opacity=".25"/>`).join(''):''}
-          ${f.dna?`<path d="M85 90 Q100 105 85 120 Q100 135 85 150 M115 90 Q100 105 115 120 Q100 135 115 150" fill="none" stroke="${PARTS.dna.color}" stroke-width="2.5"/>`:''}
-          ${hexPts.map(p=>{
-            const dx = p[0]-cx, dy = p[1]-cy;
-            const len = Math.hypot(dx,dy);
-            const ex = cx + dx/len * (r+22), ey = cy + dy/len * (r+22);
-            return `<line x1="${p[0].toFixed(1)}" y1="${p[1].toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="${PARTS.pins.color}" stroke-width="${f.pins?3:2.5}" stroke-dasharray="${f.pins?'0':'3 2'}" stroke-linecap="round"/>
-                    ${f.pins?`<circle cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="4" fill="${PARTS.pins.color}"/>`:''}`;
-          }).join('')}
+          ${f.capsid ? `<polygon points="${hexStr}" ${partAttrs('capsid',true,{fillOp:.6})}/>
+                        ${hexPts.map(p=>`<line x1="${cx}" y1="${cy}" x2="${p[0].toFixed(1)}" y2="${p[1].toFixed(1)}" stroke="#1a2433" stroke-width="1" opacity=".3"/>`).join('')}` : ''}
+          ${f.dna    ? `<path d="M85 90 Q100 105 85 120 Q100 135 85 150 M115 90 Q100 105 115 120 Q100 135 115 150" fill="none" stroke="${PARTS.dna.color}" stroke-width="2.5"/>` : ''}
+          ${f.pins   ? pinEnds.map(p=>`<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${p.ex.toFixed(1)}" y2="${p.ey.toFixed(1)}" stroke="${PARTS.pins.color}" stroke-width="3" stroke-linecap="round"/><circle cx="${p.ex.toFixed(1)}" cy="${p.ey.toFixed(1)}" r="4" fill="${PARTS.pins.color}"/>`).join('') : ''}
+          <!-- Outlines for missing parts -->
+          ${!f.capsid ? `<polygon points="${hexStr}" ${partAttrs('capsid',false,{dash:'4 3'})}/>` : ''}
+          ${!f.dna    ? `<path d="M85 90 Q100 105 85 120 Q100 135 85 150" fill="none" stroke="${PARTS.dna.color}" stroke-width="2" stroke-dasharray="4 3"/>` : ''}
+          ${!f.pins   ? pinEnds.map(p=>`<line x1="${p.x.toFixed(1)}" y1="${p.y.toFixed(1)}" x2="${p.ex.toFixed(1)}" y2="${p.ey.toFixed(1)}" stroke="${PARTS.pins.color}" stroke-width="2.5" stroke-dasharray="3 2" stroke-linecap="round"/>`).join('') : ''}
         </svg>`;
       }
     },
@@ -477,32 +539,78 @@
     if (idx < 0 || b.filled[idx]) return;
     b.filled[idx] = true;
     renderVirus();
-    // Check completion
-    if (b.filled.every(Boolean)) {
-      state.locked = true;
-      const award = Math.min(b.def.atp, 100 - state.atp);
-      state.atp += award;
-      state.built += 1;
-      atpEl.textContent = state.atp;
-      builtEl.textContent = state.built;
-      releaseText.innerHTML = `Released! +${award} <i class="atp-icon"></i>`;
-      releaseEl.hidden = false;
-      releaseEl.classList.remove('show');
-      void releaseEl.offsetWidth;
-      releaseEl.classList.add('show');
-      const target = document.querySelector('#g1-play .hud .good');
-      if (target) spawnATPMolecules(target, award);
-
-      setTimeout(() => {
-        releaseEl.hidden = true;
-        releaseEl.classList.remove('show');
-        if (state.atp >= 100 || state.time <= 0) return finishGame();
-        state.blueprint = pickBlueprint(b.key);
-        state.locked = false;
-        renderVirus();
-      }, 1100);
-    }
+    if (b.filled.every(Boolean)) onComplete();
   }
+
+  function onComplete() {
+    const b = state.blueprint;
+    state.locked = true;
+    state.completed = true;          // waiting for player to swipe/tap to next
+    const award = Math.min(b.def.atp, 100 - state.atp);
+    state.lastAward = award;
+    state.atp += award;
+    state.built += 1;
+    atpEl.textContent = state.atp;
+    builtEl.textContent = state.built;
+    releaseText.innerHTML = `Released! +${award} <i class="atp-icon"></i><br><small>swipe or tap →</small>`;
+    releaseEl.hidden = false;
+    releaseEl.classList.remove('show');
+    void releaseEl.offsetWidth;
+    releaseEl.classList.add('show');
+    virusEl.classList.add('completed');
+    const target = document.querySelector('#g1-play .hud .good');
+    if (target) spawnATPMolecules(target, award);
+  }
+
+  function advanceBlueprint() {
+    if (!state || !state.completed) return;
+    if (state.atp >= 100 || state.time <= 0) { virusEl.classList.remove('completed'); return finishGame(); }
+    // Slide out animation, then load new blueprint
+    virusEl.classList.add('sliding-out');
+    setTimeout(() => {
+      virusEl.classList.remove('completed','sliding-out');
+      releaseEl.hidden = true;
+      releaseEl.classList.remove('show');
+      const prevKey = state.blueprint.key;
+      state.blueprint = pickBlueprint(prevKey);
+      state.completed = false;
+      state.locked = false;
+      renderVirus();
+      virusEl.classList.add('sliding-in');
+      setTimeout(() => virusEl.classList.remove('sliding-in'), 400);
+    }, 320);
+  }
+
+  /* Tap or swipe the completed virus to advance */
+  function setupAdvanceGesture(){
+    let startX = 0, startY = 0, tracking = false;
+    virusEl.addEventListener('pointerdown', (e) => {
+      if (!state || !state.completed) return;
+      tracking = true;
+      startX = e.clientX; startY = e.clientY;
+      try { virusEl.setPointerCapture(e.pointerId); } catch(_){}
+    });
+    virusEl.addEventListener('pointermove', (e) => {
+      if (!tracking) return;
+      const dx = e.clientX - startX;
+      virusEl.style.transform = `translateX(${dx}px) rotate(${dx*0.05}deg)`;
+    });
+    function end(e){
+      if (!tracking) return;
+      tracking = false;
+      try { virusEl.releasePointerCapture(e.pointerId); } catch(_){}
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      virusEl.style.transform = '';
+      // Swipe past threshold OR small movement (treat as tap)
+      if (Math.abs(dx) > 60 || (Math.abs(dx) < 10 && Math.abs(dy) < 10)) {
+        advanceBlueprint();
+      }
+    }
+    virusEl.addEventListener('pointerup', end);
+    virusEl.addEventListener('pointercancel', end);
+  }
+  setupAdvanceGesture();
 
   function loop(ts) {
     if (!state || state.ended) return;
@@ -541,8 +649,9 @@
     state = {
       time: 90, atp: 0, built: 0,
       blueprint: pickBlueprint(null),
-      lastTs: 0, locked: false, ended: false
+      lastTs: 0, locked: false, ended: false, completed: false
     };
+    virusEl.classList.remove('completed','sliding-out','sliding-in');
     atpEl.textContent = 0;
     builtEl.textContent = 0;
     timeEl.textContent = '90.0';

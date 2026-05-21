@@ -600,8 +600,9 @@ canvas {
   bottom: 14px;
   width: 110px; height: 110px;
   border-radius: 50%;
-  background: rgba(255,255,255,.12);
-  border: 2px solid rgba(255,255,255,.25);
+  background: rgba(15, 22, 36, .88);
+  border: 3px solid #fff;
+  box-shadow: 0 6px 18px rgba(0,0,0,.5), inset 0 0 16px rgba(0,0,0,.45);
   touch-action: none;
   display: flex; align-items: center; justify-content: center;
   z-index: 4;
@@ -609,8 +610,9 @@ canvas {
 .joystick-nub {
   width: 50px; height: 50px;
   border-radius: 50%;
-  background: rgba(255,255,255,.85);
-  box-shadow: 0 4px 12px rgba(0,0,0,.3);
+  background: linear-gradient(135deg, #d97a3a 0%, #a8324a 100%);
+  border: 2.5px solid #fff;
+  box-shadow: 0 4px 12px rgba(0,0,0,.6);
   pointer-events: none;
   transition: transform .05s linear;
 }
@@ -1934,3 +1936,72 @@ body.game-fullscreen-active .chapter-header { visibility: hidden; }
 
 /* Rank-reveal modal lives above the fullscreen game */
 .rank-overlay { z-index: 12000 !important; }
+
+/* ============================================================
+   VPL — swipe-to-advance completed virus
+   ============================================================ */
+.vpl-virus {
+  transition: transform .3s ease-out, opacity .3s;
+  touch-action: none;
+}
+.vpl-virus.completed {
+  cursor: grab;
+}
+.vpl-virus.completed::after {
+  content: '→';
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 56px;
+  color: #ffd17a;
+  text-shadow: 0 0 12px rgba(255,209,122,.6);
+  animation: vplArrowPulse 1s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 4;
+}
+@keyframes vplArrowPulse {
+  0%,100% { transform: translateY(-50%) translateX(0); opacity: .7; }
+  50%     { transform: translateY(-50%) translateX(8px); opacity: 1; }
+}
+.vpl-virus.sliding-out {
+  transform: translateX(120%) rotate(15deg) !important;
+  opacity: 0;
+  transition: transform .32s cubic-bezier(.4,.2,.7,1), opacity .32s;
+}
+.vpl-virus.sliding-in {
+  animation: vplSlideIn .4s ease-out;
+}
+@keyframes vplSlideIn {
+  from { transform: translateX(-100%) rotate(-12deg); opacity: 0; }
+  to   { transform: translateX(0) rotate(0); opacity: 1; }
+}
+.vpl-release-banner small {
+  display: block;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  margin-top: 6px;
+  letter-spacing: .08em;
+  opacity: .85;
+}
+
+/* ============================================================
+   Vaccine Transport v3 — bigger SVGs to show texture
+   ============================================================ */
+.vt-box-wrap { width: 140px; height: 170px; }
+.vt-box-shadow { width: 110px; }
+.vt-tool-svg { width: 140px; height: 140px; }
+
+@media (max-width: 600px) {
+  .vt-box-wrap { width: 110px; height: 130px; }
+  .vt-box-shadow { width: 90px; }
+  .vt-tool-svg { width: 110px; height: 110px; }
+}
+@media (max-width: 380px) {
+  .vt-box-wrap { width: 92px; height: 110px; }
+  .vt-tool-svg { width: 92px; height: 92px; }
+}
+
+/* Slider styling — wider thumb for finger drag */
+.vt-slider { width: 100%; max-width: 180px; }
