@@ -87,25 +87,34 @@
   <section id="t-g1" class="panel">
     <div class="game-card">
       <h2>Virus Production Line</h2>
-      <p class="lede">A bacterium has been hijacked. Build each viral blueprint by tapping the matching components. Worth <strong>100<i class="atp-icon"></i></strong>.</p>
+      <p class="lede">A bacterium has been hijacked. <strong>Drag</strong> each viral component into its outlined slot on the blueprint. Worth <strong>100<i class="atp-icon"></i></strong> max.</p>
 
       <div id="g1-start" class="game-start">
-        <p>You have <strong>90 seconds</strong>. A blueprint appears with empty slots — tap a component from the palette to fill the next slot that needs it. Wrong components shake. Complete the blueprint to release the virus and earn ATP. Bigger viruses pay more.</p>
+        <p>You have <strong>90 seconds</strong>. Drag a component from the side palette onto the matching dashed slot on the blueprint. Complete it to release the virus and earn ATP. Bigger viruses pay more. Score caps at 100 — reach it and you win early.</p>
         <button class="btn" id="g1-start-btn">Start game</button>
       </div>
 
       <div id="g1-play" class="game-play" hidden>
         <div class="hud">
           <span class="bad">Time <b id="g1-time">90.0</b>s</span>
-          <span class="good"><i class="atp-icon"></i> <b id="g1-atp">0</b></span>
+          <span class="good"><i class="atp-icon"></i> <b id="g1-atp">0</b>/100</span>
           <span>Built <b id="g1-built">0</b></span>
         </div>
-        <div class="vpl-blueprint" id="g1-blueprint">
-          <div class="vpl-bp-name"><span id="g1-bp-name">—</span> <small id="g1-bp-atp"></small></div>
-          <div class="vpl-slots" id="g1-slots"></div>
-          <div class="vpl-release" id="g1-release" hidden>Released! 🦠</div>
+
+        <div class="vpl-stage">
+          <div class="vpl-side" id="g1-side-left"></div>
+          <div class="vpl-center">
+            <div class="vpl-bp-info">
+              <strong id="g1-bp-name">—</strong>
+              <small id="g1-bp-atp"></small>
+            </div>
+            <div class="vpl-virus" id="g1-virus"></div>
+            <div class="vpl-release-banner" id="g1-release" hidden>
+              <span id="g1-release-text">Released! 🦠</span>
+            </div>
+          </div>
+          <div class="vpl-side" id="g1-side-right"></div>
         </div>
-        <div class="vpl-palette" id="g1-palette"></div>
       </div>
 
       <div id="g1-result" class="game-result" hidden></div>
@@ -131,7 +140,7 @@
 <script src="../js/chapter.js"></script>
 <script>
 /* ============================================================
-   GAME — Virus Production Line
+   GAME — Virus Production Line (drag-drop, side palettes, SVGs)
    ============================================================ */
 (function(){
   const PARTS = {
@@ -147,14 +156,191 @@
     envelope:  { label:'Envelope',    short:'ENV', color:'#f48fb1' },
     rt:        { label:'Retrotransc.',short:'RT',  color:'#9575cd' },
   };
-  const BLUEPRINTS = [
-    { name:'Bacteriophage Lambda', parts:['capsid','neck','tailsheath','tailfibers','baseplate','dna'], atp:20 },
-    { name:'HIV',                  parts:['capsid','envelope','glyco','rna','rt'],                     atp:18 },
-    { name:'Influenza',            parts:['capsid','envelope','glyco','rna'],                          atp:14 },
-    { name:'Ebola',                parts:['capsid','envelope','glyco','rna'],                          atp:14 },
-    { name:'Tobacco Mosaic',       parts:['capsid','rna'],                                             atp:5  },
-    { name:'Adenovirus',           parts:['capsid','pins','dna'],                                      atp:9  },
-  ];
+
+  /* Each virus defines:
+     - parts:  required components (in display order)
+     - atp:    reward when complete
+     - svg(f): function returning an SVG string. f is a map of partKey→bool
+     - slots:  hit-test boxes for drag-drop, in viewBox coordinates  */
+  const VIRUSES = {
+    lambda: {
+      name: 'Bacteriophage Lambda',
+      atp: 20,
+      parts: ['capsid','dna','neck','tailsheath','baseplate','tailfibers'],
+      viewBox: '0 0 200 280',
+      slots: {
+        capsid:    { x: 60, y: 10,  w: 80,  h: 70 },
+        dna:       { x: 80, y: 30,  w: 40,  h: 40 },
+        neck:      { x: 88, y: 82,  w: 24,  h: 22 },
+        tailsheath:{ x: 82, y: 108, w: 36,  h: 60 },
+        baseplate: { x: 64, y: 172, w: 72,  h: 16 },
+        tailfibers:{ x: 30, y: 190, w: 140, h: 70 },
+      },
+      svg(f) {
+        return `<svg viewBox="0 0 200 280" xmlns="http://www.w3.org/2000/svg">
+          ${shapeHex(100, 45, 40, 'capsid', f.capsid)}
+          ${f.dna ? `<path d="M86 30 Q100 50 86 70 Q72 50 86 30" fill="none" stroke="${PARTS.dna.color}" stroke-width="3"/>` : ''}
+          <rect x="88" y="82" width="24" height="22" fill="${f.neck?PARTS.neck.color:'none'}" stroke="${PARTS.neck.color}" stroke-width="2.5" stroke-dasharray="${f.neck?'0':'4 3'}"/>
+          <rect x="82" y="108" width="36" height="60" rx="3" fill="${f.tailsheath?PARTS.tailsheath.color:'none'}" stroke="${PARTS.tailsheath.color}" stroke-width="2.5" stroke-dasharray="${f.tailsheath?'0':'4 3'}"/>
+          ${f.tailsheath?`<line x1="100" y1="115" x2="100" y2="160" stroke="#1a2433" stroke-width="1" opacity=".3"/>`:''}
+          <rect x="64" y="172" width="72" height="14" rx="4" fill="${f.baseplate?PARTS.baseplate.color:'none'}" stroke="${PARTS.baseplate.color}" stroke-width="2.5" stroke-dasharray="${f.baseplate?'0':'4 3'}"/>
+          ${[[68,186,40,260],[100,186,100,265],[132,186,160,260]].map(([x1,y1,x2,y2]) =>
+            `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${PARTS.tailfibers.color}" stroke-width="${f.tailfibers?3:2.5}" stroke-dasharray="${f.tailfibers?'0':'4 3'}" stroke-linecap="round"/>
+             ${f.tailfibers?`<circle cx="${x2}" cy="${y2}" r="3" fill="${PARTS.tailfibers.color}"/>`:''}`).join('')}
+        </svg>`;
+      }
+    },
+    hiv: {
+      name: 'HIV',
+      atp: 18,
+      parts: ['envelope','glyco','capsid','rna','rt'],
+      viewBox: '0 0 200 220',
+      slots: {
+        envelope: { x: 20, y: 30, w: 160, h: 160 },
+        glyco:    { x: 20, y: 30, w: 160, h: 30 },
+        capsid:   { x: 70, y: 80, w: 60,  h: 90 },
+        rna:      { x: 80, y: 100, w: 40, h: 60 },
+        rt:       { x: 110, y: 130, w: 30, h: 30 },
+      },
+      svg(f) {
+        return `<svg viewBox="0 0 200 220" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="100" cy="110" r="78" fill="${f.envelope?PARTS.envelope.color:'none'}" fill-opacity=".25" stroke="${PARTS.envelope.color}" stroke-width="2.5" stroke-dasharray="${f.envelope?'0':'5 4'}"/>
+          ${[20,55,90,125,160,195,230,265,300,335].map(a => {
+            const rad = a*Math.PI/180, cx=100+Math.cos(rad)*78, cy=110+Math.sin(rad)*78;
+            const bx=100+Math.cos(rad)*92, by=110+Math.sin(rad)*92;
+            return `<line x1="${cx.toFixed(1)}" y1="${cy.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="${PARTS.glyco.color}" stroke-width="${f.glyco?3:2.5}" stroke-dasharray="${f.glyco?'0':'3 2'}" stroke-linecap="round"/>
+                    ${f.glyco?`<circle cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="5" fill="${PARTS.glyco.color}"/>`:''}`;
+          }).join('')}
+          <polygon points="70,80 130,80 115,170 85,170" fill="${f.capsid?PARTS.capsid.color:'none'}" fill-opacity=".7" stroke="${PARTS.capsid.color}" stroke-width="2.5" stroke-dasharray="${f.capsid?'0':'4 3'}"/>
+          ${f.rna?`<path d="M88 100 Q102 110 92 125 Q102 140 88 155" fill="none" stroke="${PARTS.rna.color}" stroke-width="2.5"/>
+                  <path d="M112 100 Q98 110 108 125 Q98 140 112 155" fill="none" stroke="${PARTS.rna.color}" stroke-width="2.5"/>`:''}
+          ${f.rt?`<ellipse cx="118" cy="138" rx="9" ry="6" fill="${PARTS.rt.color}" stroke="#1a2433" stroke-width="1"/>
+                  <text x="118" y="142" text-anchor="middle" font-size="7" fill="#1a2433" font-weight="bold">RT</text>`:''}
+        </svg>`;
+      }
+    },
+    influenza: {
+      name: 'Influenza',
+      atp: 14,
+      parts: ['envelope','glyco','capsid','rna'],
+      viewBox: '0 0 200 200',
+      slots: {
+        envelope: { x: 30, y: 30, w: 140, h: 140 },
+        glyco:    { x: 30, y: 30, w: 140, h: 30 },
+        capsid:   { x: 75, y: 75, w: 50, h: 50 },
+        rna:      { x: 80, y: 80, w: 40, h: 40 },
+      },
+      svg(f) {
+        return `<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="100" cy="100" r="62" fill="${f.envelope?PARTS.envelope.color:'none'}" fill-opacity=".25" stroke="${PARTS.envelope.color}" stroke-width="2.5" stroke-dasharray="${f.envelope?'0':'5 4'}"/>
+          ${Array.from({length:14},(_,i)=>i*360/14).map(a => {
+            const rad = a*Math.PI/180, cx=100+Math.cos(rad)*62, cy=100+Math.sin(rad)*62;
+            const bx=100+Math.cos(rad)*78, by=100+Math.sin(rad)*78;
+            const isHA = i%2===0;
+            return `<line x1="${cx.toFixed(1)}" y1="${cy.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="${PARTS.glyco.color}" stroke-width="${f.glyco?3:2.5}" stroke-dasharray="${f.glyco?'0':'3 2'}" stroke-linecap="round"/>
+                    ${f.glyco?`<${isHA?'rect':'circle'} ${isHA?`x="${(bx-3).toFixed(1)}" y="${(by-3).toFixed(1)}" width="6" height="6"`:`cx="${bx.toFixed(1)}" cy="${by.toFixed(1)}" r="3.5"`} fill="${PARTS.glyco.color}"/>`:''}`;
+          }).join('')}
+          <circle cx="100" cy="100" r="24" fill="${f.capsid?PARTS.capsid.color:'none'}" fill-opacity=".6" stroke="${PARTS.capsid.color}" stroke-width="2.5" stroke-dasharray="${f.capsid?'0':'4 3'}"/>
+          ${f.rna?Array.from({length:8},(_,i)=>{
+            const a=i*Math.PI/4, x1=100+Math.cos(a)*6, y1=100+Math.sin(a)*6;
+            const x2=100+Math.cos(a)*18, y2=100+Math.sin(a)*18;
+            return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${PARTS.rna.color}" stroke-width="2"/>`;
+          }).join(''):''}
+        </svg>`;
+      }
+    },
+    ebola: {
+      name: 'Ebola',
+      atp: 14,
+      parts: ['envelope','glyco','capsid','rna'],
+      viewBox: '0 0 300 110',
+      slots: {
+        envelope: { x: 10, y: 35, w: 280, h: 40 },
+        glyco:    { x: 10, y: 18, w: 280, h: 22 },
+        capsid:   { x: 30, y: 45, w: 240, h: 20 },
+        rna:      { x: 35, y: 50, w: 230, h: 10 },
+      },
+      svg(f) {
+        return `<svg viewBox="0 0 300 110" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20 55 Q30 30 70 40 Q120 50 170 35 Q230 25 280 55 Q230 85 170 75 Q120 60 70 70 Q30 80 20 55 Z"
+                fill="${f.envelope?PARTS.envelope.color:'none'}" fill-opacity=".2"
+                stroke="${PARTS.envelope.color}" stroke-width="2.5" stroke-dasharray="${f.envelope?'0':'5 4'}"/>
+          ${[40,70,100,130,160,190,220,250].map(x => {
+            const yTop = 30 + Math.sin(x*0.1)*5;
+            return `<line x1="${x}" y1="${yTop-12}" x2="${x}" y2="${yTop}" stroke="${PARTS.glyco.color}" stroke-width="${f.glyco?3:2.5}" stroke-dasharray="${f.glyco?'0':'3 2'}" stroke-linecap="round"/>
+                    ${f.glyco?`<circle cx="${x}" cy="${yTop-14}" r="3" fill="${PARTS.glyco.color}"/>`:''}`;
+          }).join('')}
+          <rect x="35" y="48" width="230" height="14" rx="6" fill="${f.capsid?PARTS.capsid.color:'none'}" fill-opacity=".6" stroke="${PARTS.capsid.color}" stroke-width="2.5" stroke-dasharray="${f.capsid?'0':'4 3'}"/>
+          ${f.rna?`<path d="M40 55 Q60 50 80 55 Q100 60 120 55 Q140 50 160 55 Q180 60 200 55 Q220 50 240 55 Q255 58 260 55"
+                fill="none" stroke="${PARTS.rna.color}" stroke-width="2.2"/>`:''}
+        </svg>`;
+      }
+    },
+    tmv: {
+      name: 'Tobacco Mosaic',
+      atp: 6,
+      parts: ['capsid','rna'],
+      viewBox: '0 0 300 90',
+      slots: {
+        capsid: { x: 20, y: 25, w: 260, h: 40 },
+        rna:    { x: 25, y: 35, w: 250, h: 20 },
+      },
+      svg(f) {
+        return `<svg viewBox="0 0 300 90" xmlns="http://www.w3.org/2000/svg">
+          ${Array.from({length:13},(_,i)=>{
+            const x = 25 + i*20;
+            return `<rect x="${x}" y="28" width="18" height="34" rx="3" fill="${f.capsid?PARTS.capsid.color:'none'}" fill-opacity=".7" stroke="${PARTS.capsid.color}" stroke-width="2" stroke-dasharray="${f.capsid?'0':'4 3'}"/>`;
+          }).join('')}
+          ${f.rna?`<path d="M30 45 Q45 38 60 45 Q75 52 90 45 Q105 38 120 45 Q135 52 150 45 Q165 38 180 45 Q195 52 210 45 Q225 38 240 45 Q255 52 270 45"
+                fill="none" stroke="${PARTS.rna.color}" stroke-width="2.5"/>`:''}
+        </svg>`;
+      }
+    },
+    adeno: {
+      name: 'Adenovirus',
+      atp: 10,
+      parts: ['capsid','dna','pins'],
+      viewBox: '0 0 200 220',
+      slots: {
+        capsid: { x: 30, y: 30, w: 140, h: 140 },
+        dna:    { x: 70, y: 70, w: 60, h: 60 },
+        pins:   { x: 10, y: 10, w: 180, h: 200 },
+      },
+      svg(f) {
+        // Icosahedral-ish: a hex outline with internal triangular faces
+        const cx = 100, cy = 100, r = 65;
+        const hexPts = [0,60,120,180,240,300].map(a => {
+          const rad = a*Math.PI/180;
+          return [cx+Math.cos(rad)*r, cy+Math.sin(rad)*r];
+        });
+        return `<svg viewBox="0 0 200 220" xmlns="http://www.w3.org/2000/svg">
+          <polygon points="${hexPts.map(p=>p.join(',')).join(' ')}"
+                   fill="${f.capsid?PARTS.capsid.color:'none'}" fill-opacity=".55"
+                   stroke="${PARTS.capsid.color}" stroke-width="2.5" stroke-dasharray="${f.capsid?'0':'4 3'}"/>
+          ${f.capsid?hexPts.map(p=>`<line x1="${cx}" y1="${cy}" x2="${p[0].toFixed(1)}" y2="${p[1].toFixed(1)}" stroke="#1a2433" stroke-width="1" opacity=".25"/>`).join(''):''}
+          ${f.dna?`<path d="M85 90 Q100 105 85 120 Q100 135 85 150 M115 90 Q100 105 115 120 Q100 135 115 150" fill="none" stroke="${PARTS.dna.color}" stroke-width="2.5"/>`:''}
+          ${hexPts.map(p=>{
+            const dx = p[0]-cx, dy = p[1]-cy;
+            const len = Math.hypot(dx,dy);
+            const ex = cx + dx/len * (r+22), ey = cy + dy/len * (r+22);
+            return `<line x1="${p[0].toFixed(1)}" y1="${p[1].toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="${PARTS.pins.color}" stroke-width="${f.pins?3:2.5}" stroke-dasharray="${f.pins?'0':'3 2'}" stroke-linecap="round"/>
+                    ${f.pins?`<circle cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="4" fill="${PARTS.pins.color}"/>`:''}`;
+          }).join('')}
+        </svg>`;
+      }
+    },
+  };
+
+  function shapeHex(cx, cy, r, partKey, filled) {
+    const pts = [0,60,120,180,240,300].map(a => {
+      const rad = a*Math.PI/180;
+      return `${(cx+Math.cos(rad)*r).toFixed(1)},${(cy+Math.sin(rad)*r).toFixed(1)}`;
+    }).join(' ');
+    const c = PARTS[partKey].color;
+    return `<polygon points="${pts}" fill="${filled?c:'none'}" fill-opacity=".5" stroke="${c}" stroke-width="2.5" stroke-dasharray="${filled?'0':'4 3'}"/>`;
+  }
+
+  const BLUEPRINT_KEYS = ['lambda','hiv','influenza','ebola','tmv','adeno'];
 
   const startBtn   = document.getElementById('g1-start-btn');
   const startPanel = document.getElementById('g1-start');
@@ -163,81 +349,160 @@
   const timeEl     = document.getElementById('g1-time');
   const atpEl      = document.getElementById('g1-atp');
   const builtEl    = document.getElementById('g1-built');
-  const slotsEl    = document.getElementById('g1-slots');
-  const paletteEl  = document.getElementById('g1-palette');
   const bpNameEl   = document.getElementById('g1-bp-name');
   const bpAtpEl    = document.getElementById('g1-bp-atp');
   const releaseEl  = document.getElementById('g1-release');
+  const releaseText= document.getElementById('g1-release-text');
+  const virusEl    = document.getElementById('g1-virus');
+  const sideLeftEl = document.getElementById('g1-side-left');
+  const sideRightEl= document.getElementById('g1-side-right');
 
   let state = null, raf = null;
 
-  function newBlueprint() {
-    const bp = BLUEPRINTS[Math.floor(Math.random()*BLUEPRINTS.length)];
-    return { def: bp, filled: bp.parts.map(()=>false) };
+  function pickBlueprint(prevKey) {
+    let pool = BLUEPRINT_KEYS;
+    if (prevKey) pool = pool.filter(k => k !== prevKey);
+    const k = pool[Math.floor(Math.random()*pool.length)];
+    const v = VIRUSES[k];
+    const filled = {};
+    v.parts.forEach(p => filled[p] = false);
+    return { key: k, def: v, filled };
   }
 
-  function renderBlueprint() {
+  function renderVirus() {
     const b = state.blueprint;
-    bpNameEl.textContent = b.def.name;
-    bpAtpEl.innerHTML = `+${b.def.atp} <i class="atp-icon"></i>`;
-    slotsEl.innerHTML = b.def.parts.map((p, i) => {
-      const part = PARTS[p];
-      const done = b.filled[i];
-      return `<div class="vpl-slot ${done?'filled':''}" style="--c:${part.color}">
-        <div class="vpl-slot-blob">${part.short}</div>
-        <div class="vpl-slot-label">${part.label}</div>
-      </div>`;
+    const v = b.def;
+    bpNameEl.textContent = v.name;
+    bpAtpEl.innerHTML = `+${v.atp} <i class="atp-icon"></i>`;
+    const svg = v.svg(b.filled);
+    // Drop zones overlaid on the SVG
+    const zones = v.parts.map(p => {
+      const s = v.slots[p];
+      if (!s) return '';
+      const filled = b.filled[p] || b.filled[v.parts.indexOf(p)];
+      const isFilled = b.filled[v.parts.indexOf(p)];
+      // Compute % positions assuming viewBox 0 0 W H
+      const vb = v.viewBox.split(/\s+/).map(Number);
+      const W = vb[2], H = vb[3];
+      const left = (s.x / W) * 100;
+      const top  = (s.y / H) * 100;
+      const w    = (s.w / W) * 100;
+      const h    = (s.h / H) * 100;
+      return `<div class="vpl-drop ${isFilled?'filled':''}" data-need="${p}"
+                   style="left:${left}%;top:${top}%;width:${w}%;height:${h}%"
+                   title="${PARTS[p].label}"></div>`;
     }).join('');
-    releaseEl.hidden = true;
+    virusEl.innerHTML = `<div class="vpl-virus-inner">${svg}<div class="vpl-zones">${zones}</div></div>`;
   }
 
   function renderPalette() {
-    paletteEl.innerHTML = Object.entries(PARTS).map(([k, p]) =>
-      `<button class="vpl-part" data-k="${k}" style="--c:${p.color}">
+    const keys = Object.keys(PARTS);
+    const mid = Math.ceil(keys.length / 2);
+    const left = keys.slice(0, mid);
+    const right = keys.slice(mid);
+    const make = (k) => {
+      const p = PARTS[k];
+      return `<div class="vpl-part" data-k="${k}" style="--c:${p.color}">
         <span class="vpl-pchip">${p.short}</span>
         <span class="vpl-plabel">${p.label}</span>
-      </button>`
-    ).join('');
-    paletteEl.querySelectorAll('.vpl-part').forEach(btn => {
-      btn.addEventListener('click', () => tryFill(btn.dataset.k, btn));
+      </div>`;
+    };
+    sideLeftEl.innerHTML = left.map(make).join('');
+    sideRightEl.innerHTML = right.map(make).join('');
+    document.querySelectorAll('#g1-play .vpl-part').forEach(setupDrag);
+  }
+
+  function setupDrag(partEl) {
+    partEl.addEventListener('pointerdown', (e) => {
+      if (!state || state.locked) return;
+      e.preventDefault();
+      const key = partEl.dataset.k;
+      const part = PARTS[key];
+
+      // Floating ghost
+      const ghost = document.createElement('div');
+      ghost.className = 'vpl-ghost';
+      ghost.style.setProperty('--c', part.color);
+      ghost.innerHTML = `<span class="vpl-pchip">${part.short}</span><span class="vpl-plabel">${part.label}</span>`;
+      ghost.style.left = e.clientX + 'px';
+      ghost.style.top = e.clientY + 'px';
+      document.body.appendChild(ghost);
+
+      let hoverEl = null;
+
+      function move(ev) {
+        ghost.style.left = ev.clientX + 'px';
+        ghost.style.top = ev.clientY + 'px';
+        const newHover = slotUnder(ev.clientX, ev.clientY, key);
+        if (newHover !== hoverEl) {
+          if (hoverEl) hoverEl.classList.remove('hover');
+          hoverEl = newHover;
+          if (hoverEl) hoverEl.classList.add('hover');
+        }
+      }
+      function up(ev) {
+        document.removeEventListener('pointermove', move);
+        document.removeEventListener('pointerup', up);
+        document.removeEventListener('pointercancel', up);
+        if (hoverEl) hoverEl.classList.remove('hover');
+        const target = slotUnder(ev.clientX, ev.clientY, key);
+        ghost.remove();
+        if (target) {
+          tryFill(key);
+        }
+      }
+      document.addEventListener('pointermove', move);
+      document.addEventListener('pointerup', up);
+      document.addEventListener('pointercancel', up);
     });
   }
 
-  function tryFill(partKey, btn) {
+  function slotUnder(x, y, needKey) {
+    const els = document.elementsFromPoint(x, y);
+    for (const el of els) {
+      if (el.classList && el.classList.contains('vpl-drop')
+          && el.dataset.need === needKey
+          && !el.classList.contains('filled')) return el;
+    }
+    return null;
+  }
+
+  function tryFill(partKey) {
     if (!state || state.locked) return;
     const b = state.blueprint;
-    const idx = b.def.parts.findIndex((p, i) => p === partKey && !b.filled[i]);
-    if (idx < 0) {
-      btn.classList.add('shake');
-      setTimeout(()=>btn.classList.remove('shake'), 300);
-      return;
-    }
+    const idx = b.def.parts.indexOf(partKey);
+    if (idx < 0 || b.filled[idx]) return;
     b.filled[idx] = true;
-    renderBlueprint();
-    // pulse the filled slot
-    const filledSlot = slotsEl.children[idx];
-    if (filledSlot) filledSlot.classList.add('pop');
-    // check completion
+    renderVirus();
+    // Check completion
     if (b.filled.every(Boolean)) {
       state.locked = true;
-      releaseEl.hidden = false;
-      state.atp += b.def.atp;
+      const award = Math.min(b.def.atp, 100 - state.atp);
+      state.atp += award;
       state.built += 1;
       atpEl.textContent = state.atp;
       builtEl.textContent = state.built;
-      // small burst of molecules to the ATP HUD
+      releaseText.innerHTML = `Released! +${award} <i class="atp-icon"></i>`;
+      releaseEl.hidden = false;
+      releaseEl.classList.remove('show');
+      void releaseEl.offsetWidth;
+      releaseEl.classList.add('show');
       const target = document.querySelector('#g1-play .hud .good');
-      if (target) spawnATPMolecules(target, b.def.atp);
+      if (target) spawnATPMolecules(target, award);
+
       setTimeout(() => {
-        state.blueprint = newBlueprint();
+        releaseEl.hidden = true;
+        releaseEl.classList.remove('show');
+        if (state.atp >= 100 || state.time <= 0) return finishGame();
+        state.blueprint = pickBlueprint(b.key);
         state.locked = false;
-        renderBlueprint();
-      }, 700);
+        renderVirus();
+      }, 1100);
     }
   }
 
   function loop(ts) {
-    if (!state) return;
+    if (!state || state.ended) return;
     if (!state.lastTs) state.lastTs = ts;
     const dt = (ts - state.lastTs)/1000;
     state.lastTs = ts;
@@ -248,12 +513,16 @@
   }
 
   function finishGame(){
+    if (state.ended) return;
+    state.ended = true;
     cancelAnimationFrame(raf);
     playPanel.hidden = true;
     resultPanel.hidden = false;
+    releaseEl.hidden = true;
     const atp = Math.min(100, state.atp);
+    const reason = atp >= 100 ? `You hit the cap in ${(90-state.time).toFixed(1)}s.` : `${state.built} viruses built in 90 seconds.`;
     resultPanel.innerHTML = `<h2>You earned <strong>${atp} <i class="atp-icon atp-icon-lg spin"></i></strong></h2>
-      <p>${state.built} viruses built in 90 seconds.</p>
+      <p>${reason}</p>
       <button class="btn" id="g1-retry">Play again</button>`;
     document.getElementById('g1-retry').onclick = () => {
       resultPanel.hidden = true; startPanel.hidden = false;
@@ -265,16 +534,17 @@
     startPanel.hidden = true;
     playPanel.hidden  = false;
     resultPanel.hidden = true;
+    releaseEl.hidden = true;
     state = {
       time: 90, atp: 0, built: 0,
-      blueprint: newBlueprint(),
-      lastTs: 0, locked: false
+      blueprint: pickBlueprint(null),
+      lastTs: 0, locked: false, ended: false
     };
     atpEl.textContent = 0;
     builtEl.textContent = 0;
     timeEl.textContent = '90.0';
     renderPalette();
-    renderBlueprint();
+    renderVirus();
     raf = requestAnimationFrame(loop);
   }, { label: 'Start game' });
 })();

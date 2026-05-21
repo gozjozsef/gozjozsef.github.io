@@ -116,35 +116,63 @@
           <span><i class="atp-icon"></i> <b id="g1-atp">0</b></span>
         </div>
 
+        <div class="vt-event" id="g1-event" hidden></div>
+
         <div class="vt-board">
-          <div class="vt-event" id="g1-event" hidden></div>
-
-          <div class="vt-gauge">
-            <div class="vt-gauge-head"><span>🌡 Temperature</span><span class="vt-val" id="g1-temp-val">50</span></div>
-            <div class="vt-bar">
-              <div class="vt-needle" id="g1-temp-needle"></div>
+          <!-- The vaccine "bench" — box rests here, gets thrown up during jolt events -->
+          <div class="vt-scene" id="g1-scene">
+            <div class="vt-temp-readout">
+              <span>🌡</span> <b id="g1-temp-val">50</b>°C
+              <small id="g1-ph-readout">pH <b id="g1-ph-val">7.0</b></small>
             </div>
-            <div class="vt-controls">
-              <button class="btn vt-btn" id="g1-cool">❄️ Cool down</button>
-              <button class="btn vt-btn" id="g1-heat">🔥 Warm up</button>
+            <div class="vt-box-wrap" id="g1-box-wrap">
+              <!-- vaccine box SVG -->
+              <svg class="vt-box-svg" viewBox="0 0 100 120" xmlns="http://www.w3.org/2000/svg" id="g1-box-svg">
+                <rect x="14" y="22" width="72" height="86" rx="8" fill="#fff" stroke="#1a2433" stroke-width="3"/>
+                <rect x="14" y="22" width="72" height="20" rx="8" fill="#5aa9ff"/>
+                <text x="50" y="36" text-anchor="middle" font-size="10" font-weight="bold" fill="#fff">VACCINE</text>
+                <rect x="34" y="50" width="32" height="44" rx="3" fill="#ffd54f" stroke="#1a2433" stroke-width="2"/>
+                <rect x="44" y="40" width="12" height="14" fill="#9aa6ad" stroke="#1a2433" stroke-width="2"/>
+                <line x1="40" y1="64" x2="60" y2="64" stroke="#1a2433" stroke-width="1"/>
+                <line x1="40" y1="72" x2="60" y2="72" stroke="#1a2433" stroke-width="1"/>
+                <line x1="40" y1="80" x2="60" y2="80" stroke="#1a2433" stroke-width="1"/>
+                <text x="50" y="105" text-anchor="middle" font-size="8" fill="#1a2433">FRAGILE</text>
+              </svg>
+              <div class="vt-box-shadow"></div>
             </div>
           </div>
 
-          <div class="vt-gauge">
-            <div class="vt-gauge-head"><span>🧪 pH</span><span class="vt-val" id="g1-ph-val">50</span></div>
-            <div class="vt-bar">
-              <div class="vt-needle" id="g1-ph-needle"></div>
+          <!-- Cooler with slider -->
+          <div class="vt-tools">
+            <div class="vt-tool">
+              <svg class="vt-tool-svg" viewBox="0 0 100 90" xmlns="http://www.w3.org/2000/svg">
+                <rect x="8" y="20" width="84" height="60" rx="6" fill="#5aa9ff" stroke="#1a2433" stroke-width="2.5"/>
+                <rect x="8" y="20" width="84" height="14" rx="6" fill="#3a7ad4"/>
+                <rect x="38" y="14" width="24" height="10" rx="3" fill="#1a2433"/>
+                <circle cx="22" cy="50" r="4" fill="#fff" opacity=".7"/>
+                <circle cx="78" cy="50" r="4" fill="#fff" opacity=".7"/>
+                <text x="50" y="68" text-anchor="middle" font-size="9" font-weight="bold" fill="#fff">COOLER</text>
+                <path d="M40 76 L46 80 L40 84 M60 76 L54 80 L60 84" stroke="#fff" stroke-width="1.5" fill="none" opacity=".7"/>
+              </svg>
+              <label class="vt-slider-label">Cool ↔ Warm</label>
+              <input type="range" class="vt-slider" id="g1-temp-slider" min="0" max="100" value="50" step="1"/>
             </div>
-            <div class="vt-controls">
-              <button class="btn vt-btn" id="g1-acid">⬇ More acid</button>
-              <button class="btn vt-btn" id="g1-base">⬆ More base</button>
-            </div>
-          </div>
 
-          <div class="vt-drop" id="g1-drop" hidden>
-            <div class="vt-drop-icon">💉</div>
-            <button class="btn vt-catch-btn" id="g1-catch">CATCH!</button>
-            <div class="vt-drop-timer"><div class="vt-drop-bar" id="g1-drop-bar"></div></div>
+            <div class="vt-tool">
+              <div class="vt-puffer" id="g1-puffer" draggable="false">
+                <svg class="vt-tool-svg" viewBox="0 0 100 110" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M30 18 L70 18 L70 30 L60 38 L60 92 Q60 100 50 100 Q40 100 40 92 L40 38 L30 30 Z"
+                        fill="#7be0c8" stroke="#1a2433" stroke-width="2.5"/>
+                  <rect x="35" y="40" width="30" height="50" rx="2" fill="#fff" fill-opacity=".4"/>
+                  <text x="50" y="68" text-anchor="middle" font-size="9" font-weight="bold" fill="#1a2433">BUFFER</text>
+                  <line x1="42" y1="50" x2="58" y2="50" stroke="#1a2433" stroke-width="1" opacity=".4"/>
+                  <line x1="42" y1="60" x2="58" y2="60" stroke="#1a2433" stroke-width="1" opacity=".4"/>
+                  <line x1="42" y1="70" x2="58" y2="70" stroke="#1a2433" stroke-width="1" opacity=".4"/>
+                  <line x1="42" y1="80" x2="58" y2="80" stroke="#1a2433" stroke-width="1" opacity=".4"/>
+                </svg>
+                <label class="vt-slider-label">Drag a drop → box</label>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -172,7 +200,7 @@
 <script src="../js/chapter.js"></script>
 <script>
 /* ============================================================
-   GAME — Vaccine Transport
+   GAME — Vaccine Transport (slider + drag-drop puffer + flying box)
    ============================================================ */
 (function(){
   const startBtn   = document.getElementById('g1-start-btn');
@@ -182,14 +210,13 @@
   const timeEl     = document.getElementById('g1-time');
   const vaxEl      = document.getElementById('g1-vax');
   const atpEl      = document.getElementById('g1-atp');
-  const tempNeedle = document.getElementById('g1-temp-needle');
-  const phNeedle   = document.getElementById('g1-ph-needle');
   const tempVal    = document.getElementById('g1-temp-val');
   const phVal      = document.getElementById('g1-ph-val');
   const eventEl    = document.getElementById('g1-event');
-  const dropEl     = document.getElementById('g1-drop');
-  const dropBar    = document.getElementById('g1-drop-bar');
-  const catchBtn   = document.getElementById('g1-catch');
+  const tempSlider = document.getElementById('g1-temp-slider');
+  const pufferEl   = document.getElementById('g1-puffer');
+  const sceneEl    = document.getElementById('g1-scene');
+  const boxWrap    = document.getElementById('g1-box-wrap');
 
   let state = null, raf = null;
 
@@ -198,11 +225,14 @@
       time: 90, vaccines: 10, atp: 0,
       temp: 50, ph: 50,
       tempDangerSince: 0, phDangerSince: 0,
-      nextAttack: 4 + Math.random()*3,
-      drop: null,        // { remaining, total }
+      // Cooler target — slider value 0..100. Cooler drives temp toward this.
+      coolerTarget: 50,
+      nextAttack: 5 + Math.random()*3,
+      // Flying box state when bus jolts
+      flight: null,  // { y, vy, caught, peaked }
       lastTs: 0,
       ended: false,
-      eventMsg: '', eventUntil: 0
+      eventUntil: 0
     };
   }
 
@@ -213,68 +243,77 @@
     state.vaccines = Math.max(0, state.vaccines - 1);
     vaxEl.textContent = state.vaccines;
     showEvent(reason + ' — vaccine lost! ' + state.vaccines + ' left');
-    // Reset offending gauges to safe
-    state.temp = 50; state.ph = 50;
+    state.temp = 50; state.ph = 50; state.coolerTarget = 50;
+    tempSlider.value = 50;
     state.tempDangerSince = 0; state.phDangerSince = 0;
     if (state.vaccines <= 0) finishGame();
   }
 
   function showEvent(msg){
-    state.eventMsg = msg;
-    state.eventUntil = state.time - 1.5;
     eventEl.textContent = msg;
     eventEl.hidden = false;
     eventEl.classList.remove('show');
     void eventEl.offsetWidth;
     eventEl.classList.add('show');
+    state.eventUntil = state.time - 2.2;
   }
 
   function triggerAttack(){
-    const opts = ['heat','cold','acid','base','drop'];
+    const opts = ['heat','cold','acid','base','drop','drop'];  // drop a bit more common
     const pick = opts[Math.floor(Math.random()*opts.length)];
-    if (pick === 'heat')  { state.temp = clamp01(state.temp + 28); showEvent('🔥 Heat surge!'); }
-    if (pick === 'cold')  { state.temp = clamp01(state.temp - 28); showEvent('🧊 Cold shock!'); }
+    if (pick === 'heat')  { state.temp = clamp01(state.temp + 30); showEvent('🔥 Heat surge!'); }
+    if (pick === 'cold')  { state.temp = clamp01(state.temp - 30); showEvent('🧊 Cold shock!'); }
     if (pick === 'acid')  { state.ph   = clamp01(state.ph   - 28); showEvent('🍋 Acid leak!'); }
     if (pick === 'base')  { state.ph   = clamp01(state.ph   + 28); showEvent('🧂 Base spill!'); }
-    if (pick === 'drop')  { triggerDrop(); }
+    if (pick === 'drop')  { triggerFlight(); }
   }
 
-  function triggerDrop(){
-    if (state.drop) return; // already active
-    // Time to catch shrinks as the game progresses
+  function triggerFlight(){
+    if (state.flight) return;
+    // Stronger throw later in the game — but always catchable.
     const elapsed = 90 - state.time;
-    const window = Math.max(1.0, 2.4 - elapsed * 0.012);
-    state.drop = { remaining: window, total: window };
-    dropEl.hidden = false;
-    dropEl.classList.add('falling');
-    showEvent('📦 Bus jolt — catch it!');
+    const vy = -(280 + elapsed * 1.2);  // px/s
+    state.flight = { y: 0, vy, caught: false };
+    boxWrap.classList.add('flying');
+    showEvent('💥 Bus jolt — tap the box mid-air!');
   }
 
-  function endDrop(caught){
-    if (!state.drop) return;
-    state.drop = null;
-    dropEl.hidden = true;
-    dropEl.classList.remove('falling');
-    if (!caught) applyDamage('💔 Box hit the floor');
+  function endFlight(caught){
+    if (!state.flight) return;
+    state.flight = null;
+    boxWrap.classList.remove('flying');
+    boxWrap.style.transform = '';
+    boxWrap.style.transition = 'transform .35s cubic-bezier(.4,.2,.2,1.3)';
+    setTimeout(() => { boxWrap.style.transition = ''; }, 400);
+    if (!caught) applyDamage('💔 Box smashed');
   }
 
-  catchBtn.onclick = () => endDrop(true);
+  boxWrap.addEventListener('pointerdown', (e) => {
+    if (state && state.flight) {
+      state.flight.caught = true;
+      endFlight(true);
+      showEvent('✅ Nice catch!');
+      e.preventDefault();
+    }
+  });
 
-  function gaugeColorByValue(v){
+  function gaugeColor(v){
     if (v < 25 || v > 75) return '#c0392b';
     if (v < 35 || v > 65) return '#e0a52a';
     return '#1f5b3a';
   }
 
   function render(){
-    tempNeedle.style.left = state.temp + '%';
-    phNeedle.style.left = state.ph + '%';
     tempVal.textContent = Math.round(state.temp);
-    phVal.textContent = Math.round(state.ph);
-    tempVal.style.color = gaugeColorByValue(state.temp);
-    phVal.style.color = gaugeColorByValue(state.ph);
-    if (state.drop) {
-      dropBar.style.width = (state.drop.remaining / state.drop.total * 100) + '%';
+    // Map 0..100 internal → pH 0..14 for display, ideal ≈ 7
+    const phDisplay = (state.ph / 100 * 14).toFixed(1);
+    phVal.textContent = phDisplay;
+    tempVal.style.color = gaugeColor(state.temp);
+    phVal.style.color = gaugeColor(state.ph);
+
+    // Vaccine box vertical position during flight
+    if (state.flight) {
+      boxWrap.style.transform = `translateY(${state.flight.y}px) rotate(${state.flight.y*0.4}deg)`;
     }
   }
 
@@ -288,13 +327,16 @@
     timeEl.textContent = Math.max(0, state.time).toFixed(1);
     if (state.time <= 0) return finishGame();
 
-    // Difficulty ramps up over 90 seconds
     const elapsed = 90 - state.time;
-    const diff = 1 + elapsed / 45;  // 1.0 → 3.0
+    const diff = 1 + elapsed / 45;
 
-    // Natural drift
-    state.temp = clamp01(state.temp + 2.2 * diff * dt);   // warms naturally
-    state.ph   = clamp01(state.ph   + (Math.sin(elapsed * 0.7) * 1.8 * diff) * dt + (Math.random()-0.5) * diff * dt);
+    // Heat drift: bus is hot. Slider sets cooler intensity; 50 is neutral.
+    // Below 50 = cooler is cooling. Above 50 = heater is heating.
+    const coolerEffect = (state.coolerTarget - 50) * 0.18; // +/- 9 per sec at extreme
+    state.temp = clamp01(state.temp + (3.0 * diff + coolerEffect) * dt);
+
+    // pH drift: bus vibration acidifies things over time
+    state.ph = clamp01(state.ph - (0.8 * diff) * dt + (Math.random()-0.5) * 0.4 * dt);
 
     // Danger tracking
     if (state.temp < 25 || state.temp > 75) {
@@ -310,20 +352,27 @@
     state.nextAttack -= dt;
     if (state.nextAttack <= 0) {
       triggerAttack();
-      const base = Math.max(2.5, 7 - elapsed * 0.04);
-      state.nextAttack = base + Math.random()*2;
+      const base = Math.max(3.0, 7 - elapsed * 0.035);
+      state.nextAttack = base + Math.random()*2.5;
     }
 
-    // Drop event countdown
-    if (state.drop) {
-      state.drop.remaining -= dt;
-      if (state.drop.remaining <= 0) endDrop(false);
+    // Flight physics
+    if (state.flight) {
+      const f = state.flight;
+      const g = 520;  // px/s^2 — gentle enough to give catch time
+      f.vy += g * dt;
+      f.y += f.vy * dt;
+      // Only end on the way DOWN (after peak), otherwise frame 1 ends it
+      if (f.vy > 0 && f.y >= 0) {
+        f.y = 0;
+        endFlight(false);
+      }
     }
 
     // Hide stale event message
-    if (state.eventMsg && state.time < state.eventUntil) {
+    if (state.time < state.eventUntil) {
       eventEl.hidden = true;
-      state.eventMsg = '';
+      state.eventUntil = -Infinity;
     }
 
     render();
@@ -334,7 +383,7 @@
     if (state.ended) return;
     state.ended = true;
     cancelAnimationFrame(raf);
-    if (state.drop) endDrop(false);
+    if (state.flight) endFlight(false);
     playPanel.hidden = true;
     resultPanel.hidden = false;
     const atp = state.vaccines * 10;
@@ -347,32 +396,60 @@
     submitGameATP('chapter3-game1', atp, 100, resultPanel);
   }
 
-  function bindControl(id, fn) {
-    const el = document.getElementById(id);
-    el.addEventListener('click', () => {
-      if (!state || state.ended) return;
-      fn();
-      el.classList.remove('vt-bump');
-      void el.offsetWidth;
-      el.classList.add('vt-bump');
-      render();
-    });
-  }
-  bindControl('g1-cool', () => state.temp = clamp01(state.temp - 12));
-  bindControl('g1-heat', () => state.temp = clamp01(state.temp + 12));
-  bindControl('g1-acid', () => state.ph   = clamp01(state.ph   - 12));
-  bindControl('g1-base', () => state.ph   = clamp01(state.ph   + 12));
+  // Slider drives cooler target
+  tempSlider.addEventListener('input', () => {
+    if (!state || state.ended) return;
+    state.coolerTarget = +tempSlider.value;
+  });
+
+  // Drag puffer: drop a buffer onto the vaccine box to fix pH
+  pufferEl.addEventListener('pointerdown', (e) => {
+    if (!state || state.ended) return;
+    e.preventDefault();
+    const droplet = document.createElement('div');
+    droplet.className = 'vt-droplet';
+    droplet.textContent = '💧';
+    droplet.style.left = e.clientX + 'px';
+    droplet.style.top  = e.clientY + 'px';
+    document.body.appendChild(droplet);
+
+    function move(ev){
+      droplet.style.left = ev.clientX + 'px';
+      droplet.style.top  = ev.clientY + 'px';
+    }
+    function up(ev){
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      document.removeEventListener('pointercancel', up);
+      // check if released over the vaccine box
+      const els = document.elementsFromPoint(ev.clientX, ev.clientY);
+      const onBox = els.some(el => el === boxWrap || boxWrap.contains(el));
+      droplet.remove();
+      if (onBox) {
+        // Push pH back toward neutral (50)
+        const delta = 50 - state.ph;
+        state.ph = clamp01(state.ph + Math.sign(delta) * Math.min(14, Math.abs(delta)));
+        showEvent('💧 Buffer added');
+        render();
+      }
+    }
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+    document.addEventListener('pointercancel', up);
+  });
 
   gateStart(startBtn, () => {
     startPanel.hidden = true;
     playPanel.hidden  = false;
     resultPanel.hidden = true;
     eventEl.hidden = true;
-    dropEl.hidden = true;
+    boxWrap.classList.remove('flying');
+    boxWrap.style.transform = '';
     state = newState();
     vaxEl.textContent = state.vaccines;
     atpEl.textContent = 0;
     timeEl.textContent = '90.0';
+    tempSlider.value = 50;
     render();
     raf = requestAnimationFrame(loop);
   }, { label: 'Start game' });

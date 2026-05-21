@@ -196,20 +196,22 @@ async function showRankingReveal() {
   playerChip.style.transition = 'transform 2.8s cubic-bezier(.16,.85,.3,1), opacity .3s';
   playerChip.style.transform = `translateY(${dy}px) scale(1.04)`;
 
-  // After animation, swap the chip into the row so it sits cleanly
+  // After animation, swap the chip into the row so it sits cleanly.
+  // Guard every node access — the user may have dismissed the modal
+  // before the 3-second delay fires.
   setTimeout(()=>{
-    targetRow.classList.add('rank-row-revealed');
-    playerChip.classList.add('fade-out');
+    if (!document.body.contains(overlay)) return;
+    if (targetRow && targetRow.isConnected) targetRow.classList.add('rank-row-revealed');
+    if (playerChip && playerChip.isConnected) playerChip.classList.add('fade-out');
+    const sub = document.getElementById('rank-sub');
+    if (!sub) return;
     if (myRank === 1) {
-      document.getElementById('rank-sub').innerHTML =
-        `🥇 <strong>You're #1 in the class!</strong> Combined: ${Math.round(me_.combined)} <i class="atp-icon"></i>.`;
+      sub.innerHTML = `🥇 <strong>You're #1 in the class!</strong> Combined: ${Math.round(me_.combined)} <i class="atp-icon"></i>.`;
     } else if (myRank <= 3) {
-      document.getElementById('rank-sub').innerHTML =
-        `🏅 <strong>Podium finish — #${myRank}</strong>. Keep climbing.`;
+      sub.innerHTML = `🏅 <strong>Podium finish — #${myRank}</strong>. Keep climbing.`;
     } else {
       const diff = Math.round(players[myRank-2].combined - me_.combined);
-      document.getElementById('rank-sub').innerHTML =
-        `You are <strong>#${myRank}</strong> in the class. Only <strong>${diff} <i class="atp-icon"></i></strong> behind #${myRank-1}.`;
+      sub.innerHTML = `You are <strong>#${myRank}</strong> in the class. Only <strong>${diff} <i class="atp-icon"></i></strong> behind #${myRank-1}.`;
     }
   }, 3000);
 }
