@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Chapter 1 — The Immune System</title>
+<link rel="stylesheet" href="../style.css"/>
+</head>
+<body>
+
+<div class="chapter-shell">
+
+  <div class="chapter-header theme-immune">
+    <a href="../index.html" class="back">← Back to main menu</a>
+    <h1>Chapter 1 · The Immune System</h1>
+    <p>Innate &amp; adaptive immunity, pathogens, antibodies, immunological memory. Three games plus a final test.</p>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab active" data-target="g1">Game 1 · Macrophage Mayhem</button>
+    <button class="tab" data-target="g2">Game 2 · Antibody Matchmaker</button>
+    <button class="tab" data-target="g3">Game 3 · Cytokine Storm</button>
+    <button class="tab" data-target="quiz">Final Test</button>
+  </div>
+
+  <!-- ==================== GAME 1 ==================== -->
+  <section id="g1" class="panel active">
+    <div class="game-card">
+      <h2>Macrophage Mayhem</h2>
+      <p class="lede">You are a patrolling macrophage. Engulf pathogens before they overwhelm the tissue.
+        <strong>Move</strong> with arrow keys or by clicking/touching. Bacteria are green, viruses pink, fungi yellow.</p>
+      <div class="hud">
+        <span>Wave: <b id="m-wave">1</b></span>
+        <span>Score: <b id="m-score">0</b></span>
+        <span class="bad">Tissue HP: <b id="m-hp">100</b></span>
+      </div>
+      <canvas id="macroCanvas" width="800" height="450"></canvas>
+      <p class="feedback" id="m-feedback"></p>
+      <div class="fact" id="m-fact">
+        <strong>Did you know?</strong> A single macrophage can engulf and digest up to 100 bacteria during its lifetime through a process called <em>phagocytosis</em>.
+      </div>
+      <button class="btn" id="m-start">Start / Restart</button>
+    </div>
+  </section>
+
+  <!-- ==================== GAME 2 ==================== -->
+  <section id="g2" class="panel">
+    <div class="game-card">
+      <h2>Antibody Matchmaker</h2>
+      <p class="lede">Antibodies are Y-shaped proteins with paratopes that fit only one antigen epitope.
+        Match each antibody to its correct antigen — but watch out, some look almost identical.</p>
+      <div class="hud">
+        <span>Round: <b id="ab-round">1</b>/5</span>
+        <span>Score: <b id="ab-score">0</b></span>
+      </div>
+      <div id="ab-stage"></div>
+      <p class="feedback" id="ab-feedback"></p>
+      <button class="btn" id="ab-next">Next round →</button>
+    </div>
+  </section>
+
+  <!-- ==================== GAME 3 ==================== -->
+  <section id="g3" class="panel">
+    <div class="game-card">
+      <h2>Cytokine Storm</h2>
+      <p class="lede">Trigger the right balance of signalling molecules. Too few cytokines and the infection
+        spreads; too many and the body damages itself.</p>
+      <div class="controls">
+        <div class="control"><label>IL-1 (recruit) <span class="val" id="v-il1">3</span></label><input type="range" id="il1" min="0" max="10" value="3"/></div>
+        <div class="control"><label>TNF-α (inflame) <span class="val" id="v-tnf">3</span></label><input type="range" id="tnf" min="0" max="10" value="3"/></div>
+        <div class="control"><label>IFN-γ (antiviral) <span class="val" id="v-ifn">3</span></label><input type="range" id="ifn" min="0" max="10" value="3"/></div>
+        <div class="control"><label>IL-10 (calm) <span class="val" id="v-il10">2</span></label><input type="range" id="il10" min="0" max="10" value="2"/></div>
+      </div>
+      <canvas id="storm" width="800" height="220"></canvas>
+      <p class="feedback" id="storm-feedback"></p>
+      <div class="note">Target: control the infection (blue line) below 30 while keeping inflammation (red) below 70 for 10 seconds.</div>
+      <button class="btn" id="storm-start">Start scenario</button>
+    </div>
+  </section>
+
+  <!-- ==================== QUIZ ==================== -->
+  <section id="quiz" class="panel">
+    <div class="quiz" id="quizRoot">
+      <h2>Final Test — The Immune System</h2>
+      <p>Twelve questions covering everything in this chapter. Pick an answer for each, then submit.</p>
+    </div>
+  </section>
+
+</div>
+
+<script src="../js/config.js"></script>
+<script src="../js/leaderboard.js"></script>
+<script src="../js/chapter.js"></script>
+<script>
+/* ===================== GAME 1: Macrophage Mayhem ===================== */
+(function () {
+  const canvas = document.getElementById('macroCanvas');
+  const ctx = fitCanvas(canvas, 800, 450);
+  const W = 800, H = 450;
+
+  const facts = [
+    "Neutrophils are the first responders — they outnumber other white blood cells in the bloodstream.",
+    "Phagocytes engulf pathogens by extending pseudopodia around them.",
+    "Macrophages display fragments of digested antigens on MHC II to alert T cells.",
+    "Innate immunity is fast but non-specific; adaptive immunity is slow but precise.",
+    "Cytokines are protein signals that coordinate immune responses.",
+    "Mucous membranes and skin are part of the FIRST line of defence."
+  ];
+
+  let state;
+  function reset() {
+    state = {
+      x: W/2, y: H/2, r: 22, vx: 0, vy: 0,
+      keys: {}, target: null,
+      wave: 1, score: 0, hp: 100,
+      enemies: [], lastSpawn: 0, spawnInterval: 1500,
+      running: false, waveTimer: 0, betweenWave: 0,
+      fact: facts[0]
+    };
+    updateHUD();
+  }
+  reset();
+
+  function updateHUD() {
+    document.getElementById('m-wave').textContent = state.wave;
+    document.getElementById('m-score').textContent = state.score;
+    document.getElementById('m-hp').textContent = state.hp;
+  }
+
+  document.addEventListener('keydown', e => { if (state) state.keys[e.key] = true; });
+  document.addEventListener('keyup', e => { if (state) state.keys[e.key] = false; });
+  canvas.addEventListener('mousemove', e => {
+    const r = canvas.getBoundingClientRect();
+    state.target = { x: (e.clientX - r.left) * (W/r.width), y: (e.clientY - r.top) * (H/r.height) };
+  });
+  canvas.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const t = e.touches[0], r = canvas.getBoundingClientRect();
+    state.target = { x: (t.clientX - r.left)*(W/r.width), y: (t.clientY - r.top)*(H/r.height) };
+  }, { passive: false });
+
+  function spawnEnemy() {
+    const types = [
+      { kind: 'bacteria', color: '#7bc14f', r: 10, hp: 1, speed: 0.7, dmg: 5 },
+      { kind: 'virus',    color: '#ff6680', r: 7,  hp: 1, speed: 1.2, dmg: 8 },
+      { kind: 'fungus',   color: '#e0c14f', r: 13, hp: 2, speed: 0.5, dmg: 6 }
+    ];
+    const t = types[Math.floor(Math.random() * Math.min(types.length, 1 + Math.floor(state.wave / 2)))];
+    const side = Math.floor(Math.random() * 4);
+    let x, y;
+    if (side === 0) { x = -20; y = Math.random() * H; }
+    else if (side === 1) { x = W + 20; y = Math.random() * H; }
+    else if (side === 2) { x = Math.random() * W; y = -20; }
+    else { x = Math.random() * W; y = H + 20; }
+    state.enemies.push({ ...t, x, y });
+  }
+
+  function loop(dt) {
+    if (!state.running) return;
+
+    // Movement: keys
+    const sp = 4;
+    if (state.keys['ArrowUp'] || state.keys['w']) state.y -= sp;
+    if (state.keys['ArrowDown'] || state.keys['s']) state.y += sp;
+    if (state.keys['ArrowLeft'] || state.keys['a']) state.x -= sp;
+    if (state.keys['ArrowRight'] || state.keys['d']) state.x += sp;
+    // Movement: mouse target
+    if (state.target) {
+      const dx = state.target.x - state.x, dy = state.target.y - state.y;
+      const d = Math.hypot(dx, dy);
+      if (d > 2) { state.x += (dx/d) * Math.min(sp, d); state.y += (dy/d) * Math.min(sp, d); }
+    }
+    state.x = Math.max(state.r, Math.min(W - state.r, state.x));
+    state.y = Math.max(state.r, Math.min(H - state.r, state.y));
+
+    // Spawn enemies
+    state.lastSpawn += dt;
+    if (state.lastSpawn > state.spawnInterval) {
+      state.lastSpawn = 0;
+      spawnEnemy();
+    }
+
+    // Move enemies
+    for (const e of state.enemies) {
+      const dx = state.x - e.x, dy = state.y - e.y;
+      const d = Math.hypot(dx, dy) || 1;
+      e.x += (dx/d) * e.speed;
+      e.y += (dy/d) * e.speed;
+    }
+
+    // Collisions
+    for (let i = state.enemies.length - 1; i >= 0; i--) {
+      const e = state.enemies[i];
+      const d = Math.hypot(e.x - state.x, e.y - state.y);
+      if (d < state.r + e.r) {
+        e.hp--;
+        if (e.hp <= 0) {
+          state.enemies.splice(i, 1);
+          state.score += 10;
+        } else {
+          // Push away slightly when wounded
+          const ang = Math.atan2(e.y - state.y, e.x - state.x);
+          e.x += Math.cos(ang) * 12;
+          e.y += Math.sin(ang) * 12;
+        }
+      }
+    }
+
+    // Damage tick — anyone touching long enough off-screen-edge area? Simplify: damage if too many pile up
+    state.waveTimer += dt;
+    if (state.waveTimer > 15000) {
+      state.wave++;
+      state.waveTimer = 0;
+      state.spawnInterval = Math.max(400, state.spawnInterval - 200);
+      state.score += 50;
+      state.fact = facts[Math.floor(Math.random() * facts.length)];
+      document.getElementById('m-fact').innerHTML = '<strong>Wave ' + state.wave + ' bonus fact:</strong> ' + state.fact;
+    }
+
+    // Enemies that escape damage the tissue (here: enemies that hit the corners of canvas)
+    for (let i = state.enemies.length - 1; i >= 0; i--) {
+      const e = state.enemies[i];
+      if (e.x < -50 || e.x > W + 50 || e.y < -50 || e.y > H + 50) {
+        state.hp -= e.dmg;
+        state.enemies.splice(i, 1);
+      }
+    }
+    if (state.hp <= 0) {
+      state.running = false;
+      document.getElementById('m-feedback').textContent = 'Tissue overrun! Final score: ' + state.score + '. Try again — and remember, in real life cytokines call in reinforcements.';
+      document.getElementById('m-feedback').className = 'feedback bad';
+    }
+
+    updateHUD();
+  }
+
+  function draw() {
+    ctx.fillStyle = '#1a2433';
+    ctx.fillRect(0, 0, W, H);
+    // Tissue background dots
+    ctx.fillStyle = 'rgba(255,255,255,0.04)';
+    for (let i = 0; i < 30; i++) {
+      ctx.beginPath();
+      ctx.arc((i*73)%W, (i*131)%H, 30, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // Enemies
+    for (const e of state.enemies) {
+      ctx.fillStyle = e.color;
+      ctx.beginPath();
+      if (e.kind === 'bacteria') {
+        ctx.ellipse(e.x, e.y, e.r*1.3, e.r*0.7, 0, 0, Math.PI*2);
+      } else if (e.kind === 'virus') {
+        ctx.arc(e.x, e.y, e.r, 0, Math.PI*2);
+      } else {
+        ctx.arc(e.x, e.y, e.r, 0, Math.PI*2);
+      }
+      ctx.fill();
+      if (e.kind === 'virus') {
+        ctx.strokeStyle = e.color;
+        for (let a = 0; a < 6; a++) {
+          const ang = a / 6 * Math.PI * 2;
+          ctx.beginPath();
+          ctx.moveTo(e.x + Math.cos(ang)*e.r, e.y + Math.sin(ang)*e.r);
+          ctx.lineTo(e.x + Math.cos(ang)*(e.r+4), e.y + Math.sin(ang)*(e.r+4));
+          ctx.stroke();
+        }
+      }
+    }
+
+    // Macrophage
+    const g = ctx.createRadialGradient(state.x, state.y, 2, state.x, state.y, state.r);
+    g.addColorStop(0, '#ffd6d6'); g.addColorStop(1, '#ff7676');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    // Wobbly cell membrane
+    const time = performance.now() / 400;
+    ctx.moveTo(state.x + state.r, state.y);
+    for (let a = 0; a <= Math.PI*2; a += 0.2) {
+      const w = state.r + Math.sin(a*4 + time)*3;
+      ctx.lineTo(state.x + Math.cos(a)*w, state.y + Math.sin(a)*w);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#a8324a';
+    ctx.beginPath();
+    ctx.arc(state.x, state.y, state.r*0.4, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  let last = performance.now();
+  function frame(t) {
+    const dt = t - last; last = t;
+    if (state.running) loop(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  document.getElementById('m-start').addEventListener('click', () => {
+    reset();
+    state.running = true;
+    document.getElementById('m-feedback').textContent = 'Patrol the tissue. Move into pathogens to phagocytose them.';
+    document.getElementById('m-feedback').className = 'feedback good';
+  });
+})();
+
+/* ===================== GAME 2: Antibody Matchmaker ===================== */
+(function () {
+  const stage = document.getElementById('ab-stage');
+  const fb = document.getElementById('ab-feedback');
+  let round = 1, score = 0;
+
+  // Each round: present 3 antibodies and 3 antigens; one correct pairing for the highlighted antibody
+  function makeRound() {
+    stage.innerHTML = '';
+    document.getElementById('ab-round').textContent = round;
+    document.getElementById('ab-score').textContent = score;
+
+    // Generate "shape codes" — three for antibodies, three for antigens
+    const shapes = ['◣◢', '▲▼', '◐◑', '⬢⬡', '◀▶', '★☆'];
+    const chosen = [];
+    while (chosen.length < 3) {
+      const s = pick(shapes);
+      if (!chosen.includes(s)) chosen.push(s);
+    }
+    // Slight difficulty: also throw in similar-looking decoy if round >= 3
+    if (round >= 3) chosen[2] = chosen[0].split('').reverse().join('');
+
+    // The "target" antibody we need to match
+    const targetIdx = Math.floor(Math.random() * 3);
+    const correct = chosen[targetIdx];
+    const antigens = chosen.slice().sort(() => Math.random() - 0.5);
+
+    const html =
+      `<div style="margin-bottom:18px"><strong>Match this antibody to its antigen:</strong>` +
+      `<div class="tile" style="display:inline-block; margin-left:14px; cursor:default; font-size:22px">` +
+      `<svg viewBox="0 0 60 60" width="44" height="44"><path d="M30 50 L20 30 M30 50 L40 30 M30 50 L30 60" stroke="#4a1626" stroke-width="3" fill="none"/>` +
+      `<circle cx="20" cy="22" r="8" fill="#a8324a"/><circle cx="40" cy="22" r="8" fill="#a8324a"/></svg>` +
+      ` <span style="font-family:monospace">${correct}</span></div></div>` +
+      `<p style="font-size:13px;color:var(--ink-soft)">Click the antigen with the complementary epitope:</p>` +
+      `<div class="match-row" id="ab-tiles">` +
+      antigens.map((s, i) =>
+        `<div class="tile" data-s="${s}"><svg viewBox="0 0 60 60" width="36" height="36">` +
+        `<circle cx="30" cy="30" r="14" fill="#3a7ad4" opacity=".5"/><circle cx="30" cy="30" r="22" fill="none" stroke="#3a7ad4" stroke-width="2"/></svg>` +
+        `<div style="font-family:monospace; margin-top:4px">${s}</div></div>`
+      ).join('') + `</div>`;
+    stage.innerHTML = html;
+
+    stage.querySelectorAll('.tile[data-s]').forEach(t => {
+      t.addEventListener('click', () => {
+        if (t.dataset.s === correct) {
+          t.classList.add('correct');
+          score += 10;
+          fb.textContent = 'Correct! The paratope of an antibody is shaped to fit exactly one epitope — a "lock and key" interaction.';
+          fb.className = 'feedback good';
+        } else {
+          t.classList.add('wrong');
+          fb.textContent = 'Not quite. Antibodies are highly specific — even one different amino acid in the paratope changes which antigen it binds.';
+          fb.className = 'feedback bad';
+        }
+        stage.querySelectorAll('.tile[data-s]').forEach(x => x.style.pointerEvents = 'none');
+        document.getElementById('ab-score').textContent = score;
+      });
+    });
+  }
+
+  document.getElementById('ab-next').addEventListener('click', () => {
+    if (round >= 5) {
+      stage.innerHTML = `<div style="font-family:var(--font-serif);font-size:22px;text-align:center;padding:20px">Final score: ${score}/50. ` +
+        (score === 50 ? "Perfect specificity!" : "Practice makes perfect antibody binding.") + `</div>`;
+      return;
+    }
+    round++;
+    makeRound();
+  });
+  makeRound();
+})();
+
+/* ===================== GAME 3: Cytokine Storm ===================== */
+(function () {
+  const canvas = document.getElementById('storm');
+  const ctx = fitCanvas(canvas, 800, 220);
+  const fb = document.getElementById('storm-feedback');
+  let running = false, t0 = 0, lastT = 0;
+  let infection = 80, inflammation = 20;
+  let infHistory = [], inflHistory = [];
+  let success = 0;
+  const vals = { il1: 3, tnf: 3, ifn: 3, il10: 2 };
+
+  ['il1','tnf','ifn','il10'].forEach(k => {
+    const el = document.getElementById(k);
+    const label = document.getElementById('v-' + k);
+    el.addEventListener('input', () => {
+      vals[k] = +el.value;
+      label.textContent = el.value;
+    });
+  });
+
+  function reset() {
+    infection = 80; inflammation = 20;
+    infHistory = []; inflHistory = [];
+    success = 0; t0 = performance.now(); lastT = t0;
+  }
+
+  function tick(now) {
+    if (!running) return;
+    const dt = (now - lastT) / 1000; lastT = now;
+    // Recruitment: IL-1 + TNF reduce infection
+    const recruit = vals.il1 * 0.6 + vals.tnf * 0.4 + vals.ifn * 0.7;
+    // Inflammation rises with TNF, IL-1; reduced by IL-10
+    inflammation += (vals.tnf * 0.9 + vals.il1 * 0.4 - vals.il10 * 1.1) * dt * 5;
+    infection -= (recruit - infection * 0.02) * dt * 2;
+    infection = Math.max(0, Math.min(100, infection));
+    inflammation = Math.max(0, Math.min(100, inflammation));
+
+    // Damage from too much inflammation
+    if (inflammation > 80) infection += dt * 5; // tissue damage feeds infection (cytokine storm)
+
+    infHistory.push(infection); inflHistory.push(inflammation);
+    if (infHistory.length > 400) { infHistory.shift(); inflHistory.shift(); }
+
+    if (infection < 30 && inflammation < 70) success += dt; else success = 0;
+
+    draw();
+
+    if (success >= 10) {
+      running = false;
+      fb.textContent = 'Resolved! You balanced the response — strong enough to clear the pathogen, calm enough to spare healthy tissue.';
+      fb.className = 'feedback good';
+    } else if (infection >= 100) {
+      running = false;
+      fb.textContent = 'Infection overwhelmed the body. Try increasing IFN-γ and IL-1 to recruit more immune cells.';
+      fb.className = 'feedback bad';
+    } else if (inflammation >= 100) {
+      running = false;
+      fb.textContent = 'Cytokine storm! Excessive TNF-α and IL-1 caused tissue damage. Increase IL-10 to dampen the response.';
+      fb.className = 'feedback bad';
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function draw() {
+    const W = 800, H = 220;
+    ctx.fillStyle = '#1a2433'; ctx.fillRect(0,0,W,H);
+    // Threshold lines
+    ctx.strokeStyle = 'rgba(255,255,255,.15)';
+    ctx.beginPath(); ctx.moveTo(0, H*0.3); ctx.lineTo(W, H*0.3); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, H*0.7); ctx.lineTo(W, H*0.7); ctx.stroke();
+    // Plot histories
+    function plot(hist, color) {
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
+      hist.forEach((v, i) => {
+        const x = (i / 400) * W;
+        const y = H - (v/100) * H;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+    plot(infHistory, '#5aa9ff'); // infection
+    plot(inflHistory, '#ff6680'); // inflammation
+    // Labels
+    ctx.fillStyle = '#5aa9ff'; ctx.font = '13px monospace';
+    ctx.fillText('Infection: ' + Math.round(infection), 10, 18);
+    ctx.fillStyle = '#ff6680';
+    ctx.fillText('Inflammation: ' + Math.round(inflammation), 10, 36);
+    ctx.fillStyle = '#7be0c8';
+    ctx.fillText('Stable seconds: ' + success.toFixed(1) + ' / 10', 10, 54);
+  }
+
+  document.getElementById('storm-start').addEventListener('click', () => {
+    reset();
+    running = true;
+    fb.textContent = 'Adjust the sliders in real time as the response unfolds.';
+    fb.className = 'feedback';
+    lastT = performance.now();
+    requestAnimationFrame(tick);
+  });
+  draw();
+})();
+
+/* ===================== FINAL QUIZ ===================== */
+buildQuiz('quizRoot', [
+  { q: 'Which cells are part of the INNATE immune system?', options: ['B cells', 'Macrophages and neutrophils', 'Plasma cells', 'Cytotoxic T cells'], answer: 1, explain: 'Macrophages and neutrophils are phagocytes — first responders of the innate immune system. B and T cells are adaptive.' },
+  { q: 'What is the function of antibodies?', options: ['Digest pathogens directly', 'Bind specifically to antigens and mark them for destruction', 'Replicate viral DNA', 'Form the skin barrier'], answer: 1, explain: 'Antibodies (immunoglobulins) bind antigens with high specificity, neutralising pathogens or marking them for phagocytes (opsonisation).' },
+  { q: 'Memory B cells provide:', options: ['Innate, immediate immunity', 'Long-lasting adaptive immunity', 'Mucus secretion', 'Inflammation'], answer: 1, explain: 'Memory B cells persist for years after an infection, enabling a rapid, stronger response to the same antigen later (basis of vaccination).' },
+  { q: 'Which structure on antibodies actually binds the antigen?', options: ['Fc region', 'Constant region', 'Paratope (variable region tip)', 'Disulphide bridges'], answer: 2, explain: 'The paratope, located at the tip of the variable region of each Y-arm, is the antigen-binding site.' },
+  { q: 'Which cytokine is the major anti-inflammatory signal?', options: ['TNF-α', 'IL-1', 'IFN-γ', 'IL-10'], answer: 3, explain: 'IL-10 dampens immune responses and prevents excessive tissue damage; TNF-α and IL-1 are pro-inflammatory.' },
+  { q: 'Phagocytosis is best described as:', options: ['Cell suicide programmed by genes', 'Engulfment and digestion of particles by a cell', 'Antibody-mediated cell lysis', 'Transcription of immune genes'], answer: 1, explain: 'Phagocytosis means "cell eating" — the cell extends pseudopodia around a particle and digests it in a phagolysosome.' },
+  { q: 'Cytotoxic T cells primarily target:', options: ['Free-floating bacteria', 'Infected or cancerous host cells', 'Allergens', 'Blood platelets'], answer: 1, explain: 'CD8+ cytotoxic T cells recognise antigens on MHC I of infected or malignant cells and induce apoptosis.' },
+  { q: 'Which is part of the FIRST line of defence?', options: ['Antibodies', 'Skin and mucous membranes', 'Cytotoxic T cells', 'Plasma cells'], answer: 1, explain: 'The first line of defence is the physical/chemical barrier: skin, mucus, stomach acid, lysozyme in tears.' },
+  { q: 'A vaccine works by:', options: ['Destroying existing pathogens directly', 'Exposing the body to antigens so it forms memory cells', 'Boosting general inflammation', 'Replacing damaged tissue'], answer: 1, explain: 'Vaccines present antigens (live attenuated, inactivated, subunit, mRNA, etc.) so the adaptive system generates memory B and T cells without disease.' },
+  { q: 'Which class of antibody is produced FIRST after a new infection?', options: ['IgA', 'IgG', 'IgM', 'IgE'], answer: 2, explain: 'IgM is the first antibody class secreted in a primary immune response; class switching to IgG and others happens later.' },
+  { q: 'A cytokine storm causes harm because:', options: ['Antibodies bind too tightly', 'Excess inflammatory cytokines damage healthy tissue', 'Bacteria multiply faster', 'The skin becomes too thick'], answer: 1, explain: 'Excessive release of TNF-α, IL-1, IL-6 leads to widespread inflammation, vascular leak, and multi-organ damage.' },
+  { q: 'Which cells present antigens on MHC II to helper T cells?', options: ['Erythrocytes', 'Antigen-presenting cells (e.g. macrophages, dendritic cells, B cells)', 'Skin keratinocytes', 'Platelets'], answer: 1, explain: 'Professional APCs — dendritic cells, macrophages, B cells — display digested antigen on MHC II to activate CD4+ helper T cells.' }
+]);
+</script>
+
+</body>
+</html>
