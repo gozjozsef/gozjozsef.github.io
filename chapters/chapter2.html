@@ -369,30 +369,34 @@
     return { key: k, def: v, filled };
   }
 
+  function toFilledMap(b) {
+    const m = {};
+    b.def.parts.forEach((p, i) => m[p] = !!b.filled[i]);
+    return m;
+  }
+
   function renderVirus() {
     const b = state.blueprint;
     const v = b.def;
     bpNameEl.textContent = v.name;
     bpAtpEl.innerHTML = `+${v.atp} <i class="atp-icon"></i>`;
-    const svg = v.svg(b.filled);
-    // Drop zones overlaid on the SVG
-    const zones = v.parts.map(p => {
+    const svg = v.svg(toFilledMap(b));
+
+    // Drop zones as SVG rects in an overlay using the same viewBox →
+    // they always align with the rendered virus regardless of letterboxing.
+    const zones = v.parts.map((p, idx) => {
       const s = v.slots[p];
       if (!s) return '';
-      const filled = b.filled[p] || b.filled[v.parts.indexOf(p)];
-      const isFilled = b.filled[v.parts.indexOf(p)];
-      // Compute % positions assuming viewBox 0 0 W H
-      const vb = v.viewBox.split(/\s+/).map(Number);
-      const W = vb[2], H = vb[3];
-      const left = (s.x / W) * 100;
-      const top  = (s.y / H) * 100;
-      const w    = (s.w / W) * 100;
-      const h    = (s.h / H) * 100;
-      return `<div class="vpl-drop ${isFilled?'filled':''}" data-need="${p}"
-                   style="left:${left}%;top:${top}%;width:${w}%;height:${h}%"
-                   title="${PARTS[p].label}"></div>`;
+      const isFilled = !!b.filled[idx];
+      return `<rect class="vpl-drop ${isFilled?'filled':''}" data-need="${p}"
+                    x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}"
+                    rx="6" ry="6"/>`;
     }).join('');
-    virusEl.innerHTML = `<div class="vpl-virus-inner">${svg}<div class="vpl-zones">${zones}</div></div>`;
+
+    virusEl.innerHTML = `<div class="vpl-virus-inner">
+      ${svg}
+      <svg class="vpl-zones-svg" viewBox="${v.viewBox}" preserveAspectRatio="xMidYMid meet">${zones}</svg>
+    </div>`;
   }
 
   function renderPalette() {
@@ -416,10 +420,10 @@
     partEl.addEventListener('pointerdown', (e) => {
       if (!state || state.locked) return;
       e.preventDefault();
+      try { partEl.setPointerCapture(e.pointerId); } catch(_) {}
       const key = partEl.dataset.k;
       const part = PARTS[key];
 
-      // Floating ghost
       const ghost = document.createElement('div');
       ghost.className = 'vpl-ghost';
       ghost.style.setProperty('--c', part.color);
@@ -441,19 +445,18 @@
         }
       }
       function up(ev) {
-        document.removeEventListener('pointermove', move);
-        document.removeEventListener('pointerup', up);
-        document.removeEventListener('pointercancel', up);
+        partEl.removeEventListener('pointermove', move);
+        partEl.removeEventListener('pointerup', up);
+        partEl.removeEventListener('pointercancel', up);
+        try { partEl.releasePointerCapture(ev.pointerId); } catch(_) {}
         if (hoverEl) hoverEl.classList.remove('hover');
         const target = slotUnder(ev.clientX, ev.clientY, key);
         ghost.remove();
-        if (target) {
-          tryFill(key);
-        }
+        if (target) tryFill(key);
       }
-      document.addEventListener('pointermove', move);
-      document.addEventListener('pointerup', up);
-      document.addEventListener('pointercancel', up);
+      partEl.addEventListener('pointermove', move);
+      partEl.addEventListener('pointerup', up);
+      partEl.addEventListener('pointercancel', up);
     });
   }
 

@@ -1821,3 +1821,116 @@ canvas {
   .vt-tools { gap: 8px; padding: 12px 6px 4px; }
   .vt-slider-label { font-size: 10px; }
 }
+
+/* ============================================================
+   VPL — overlay SVG drop zones (replaces .vpl-zones HTML overlay)
+   ============================================================ */
+.vpl-zones-svg {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+}
+.vpl-zones-svg rect.vpl-drop {
+  fill: transparent;
+  stroke: transparent;
+  stroke-width: 3;
+  pointer-events: auto;
+  transition: fill .15s, stroke .15s;
+}
+.vpl-zones-svg rect.vpl-drop.hover {
+  fill: rgba(255, 209, 122, .25);
+  stroke: #ffd17a;
+  stroke-dasharray: 8 5;
+}
+.vpl-zones-svg rect.vpl-drop.filled {
+  pointer-events: none;
+}
+
+/* ============================================================
+   Vaccine Transport — tighter mobile scene
+   ============================================================ */
+@media (max-width: 600px) {
+  .vt-board { min-height: 440px; padding: 8px; }
+  .vt-scene { min-height: 180px; padding-top: 6px; }
+  .vt-box-wrap { width: 72px; height: 88px; margin-bottom: 4px; }
+  .vt-box-shadow { width: 60px; height: 10px; bottom: -6px; }
+  .vt-temp-readout { font-size: 11px; padding: 4px 8px; top: 4px; left: 6px; gap: 5px; }
+  .vt-temp-readout b { font-size: 13px; }
+  .vt-temp-readout small b { font-size: 12px; }
+  .vt-tools { margin-top: 6px; padding: 8px 6px 4px; gap: 6px; }
+  .vt-tool-svg { width: 58px; height: 58px; }
+  .vt-slider-label { font-size: 10px; }
+  .vt-slider { height: 10px; margin-top: 2px; }
+  .vt-slider::-webkit-slider-thumb { width: 28px; height: 28px; }
+  .vt-slider::-moz-range-thumb { width: 28px; height: 28px; }
+  .vt-event { font-size: 13px; padding: 6px 10px; margin: 0 0 6px; }
+  .vt-droplet { font-size: 34px; }
+}
+
+/* Very small phones — even tighter */
+@media (max-width: 380px) {
+  .vt-board { min-height: 410px; }
+  .vt-box-wrap { width: 60px; height: 74px; }
+  .vt-tool-svg { width: 48px; height: 48px; }
+  .vt-scene { min-height: 150px; }
+}
+
+/* Make sure the box and the puffer/cooler are close enough for an easy drag */
+.vt-scene { padding-bottom: 4px; }
+.vt-tools { align-items: end; }
+
+/* touch-action isn't inherited — apply to SVG children too so the
+   pointer-capture flow reliably owns the gesture on mobile. */
+.vt-puffer, .vt-puffer * { touch-action: none; }
+.vt-box-wrap, .vt-box-wrap * { touch-action: none; }
+.vpl-part, .vpl-part * { touch-action: none; }
+
+/* ============================================================
+   Game-card fullscreen mode — triggered when a game/test starts.
+   Hides nav, widget, and scrolling; gives the game the whole screen.
+   ============================================================ */
+.game-fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  margin: 0 !important;
+  z-index: 9000 !important;
+  border-radius: 0 !important;
+  overflow-y: auto !important;
+  padding: 18px 18px 28px !important;
+  background: var(--paper) !important;
+  box-shadow: none !important;
+  -webkit-overflow-scrolling: touch;
+}
+body.game-fullscreen-active {
+  overflow: hidden;
+}
+.game-fullscreen-exit {
+  position: fixed;
+  top: 10px; right: 10px;
+  z-index: 9100;
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  background: rgba(26,36,51,.85);
+  color: #fff;
+  border: none;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,.3);
+}
+.game-fullscreen-exit:hover { background: #1a2433; }
+
+/* The original chapter shell elements behind the fullscreen card
+   stay in DOM but are hidden visually so they can't ghost-click. */
+body.game-fullscreen-active .lb-widget,
+body.game-fullscreen-active .tabs,
+body.game-fullscreen-active .chapter-header { visibility: hidden; }
+
+@media (max-width: 600px) {
+  .game-fullscreen { padding: 14px 12px 22px !important; }
+  .game-fullscreen-exit { width: 36px; height: 36px; font-size: 16px; }
+}
+
+/* Rank-reveal modal lives above the fullscreen game */
+.rank-overlay { z-index: 12000 !important; }

@@ -342,22 +342,60 @@ async function submitGameATP(key, atp, max, hostEl) {
 }
 
 /* ------------------------------------------------------------
+   Fullscreen helpers — when a game/test starts, lock its
+   game-card to the viewport so the player can't get lost
+   scrolling and the floating chips don't eat space.
+   ------------------------------------------------------------ */
+function enterGameFullscreen(card) {
+  if (!card || card.classList.contains('game-fullscreen')) return;
+  card.classList.add('game-fullscreen');
+  document.body.classList.add('game-fullscreen-active');
+  if (!card.querySelector('.game-fullscreen-exit')) {
+    const exit = document.createElement('button');
+    exit.className = 'game-fullscreen-exit';
+    exit.type = 'button';
+    exit.setAttribute('aria-label', 'Exit fullscreen');
+    exit.innerHTML = '✕';
+    exit.onclick = () => exitGameFullscreen(card);
+    card.appendChild(exit);
+  }
+  // Reset scroll inside the card on entry
+  card.scrollTop = 0;
+}
+function exitGameFullscreen(card) {
+  if (!card) return;
+  card.classList.remove('game-fullscreen');
+  // Only release the body lock if no other card is fullscreen
+  if (!document.querySelector('.game-fullscreen')) {
+    document.body.classList.remove('game-fullscreen-active');
+  }
+}
+
+/* ------------------------------------------------------------
    Sign-in gate for a "Start game" button.
    Disables the button until the user signs in; updates live.
+   Also enters fullscreen when the player actually starts.
    ------------------------------------------------------------ */
 function gateStart(startBtn, startFn, opts) {
   opts = opts || {};
+  const card = startBtn.closest('.game-card');
+  const wrappedStart = () => {
+    enterGameFullscreen(card);
+    // Defer the start callback one tick so the layout reflows under
+    // fullscreen before any canvas/SVG sizing runs.
+    requestAnimationFrame(() => startFn());
+  };
   function update() {
     if (!window.BioLB || !window.BioLB.enabled) {
       startBtn.textContent = opts.label || 'Start';
       startBtn.disabled = false;
-      startBtn.onclick = startFn;
+      startBtn.onclick = wrappedStart;
       return;
     }
     if (window.BioLB.user) {
       startBtn.textContent = opts.label || 'Start';
       startBtn.disabled = false;
-      startBtn.onclick = startFn;
+      startBtn.onclick = wrappedStart;
     } else {
       startBtn.textContent = 'Sign in with Google to play';
       startBtn.disabled = false;

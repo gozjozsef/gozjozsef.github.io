@@ -220,31 +220,45 @@
 
   let state = null, raf = null;
 
+  // Real Celsius scale.
+  // Ideal: -15°C. Safe band: -55 to +25. Danger: outside.
+  // Slider 0..100 = cooler intensity (50 neutral, 100 = max cooling).
+  const TEMP_IDEAL  = -15;
+  const TEMP_MIN    = -75;
+  const TEMP_MAX    = +35;
+  const SAFE_LO     = -55;
+  const SAFE_HI     = +25;
+  // pH stays on a 0..100 internal scale; displayed 0..14.
+  const PH_IDEAL    = 50;
+
   function newState(){
     return {
       time: 90, vaccines: 10, atp: 0,
-      temp: 50, ph: 50,
+      temp: TEMP_IDEAL, ph: PH_IDEAL,
       tempDangerSince: 0, phDangerSince: 0,
-      // Cooler target — slider value 0..100. Cooler drives temp toward this.
-      coolerTarget: 50,
-      nextAttack: 5 + Math.random()*3,
-      // Flying box state when bus jolts
-      flight: null,  // { y, vy, caught, peaked }
+      coolerTarget: 50,    // slider, 50 = neutral
+      // Shock = gradual delta applied over a duration
+      tempShock: null,     // { perSec, remaining }
+      phShock: null,
+      nextAttack: 6 + Math.random()*3,
+      flight: null,
       lastTs: 0,
       ended: false,
       eventUntil: 0
     };
   }
 
-  function clamp01(v){ return Math.max(0, Math.min(100, v)); }
+  const clampT = (v) => Math.max(TEMP_MIN, Math.min(TEMP_MAX, v));
+  const clampPH = (v) => Math.max(0, Math.min(100, v));
 
   function applyDamage(reason){
     if (!state || state.ended) return;
     state.vaccines = Math.max(0, state.vaccines - 1);
     vaxEl.textContent = state.vaccines;
     showEvent(reason + ' — vaccine lost! ' + state.vaccines + ' left');
-    state.temp = 50; state.ph = 50; state.coolerTarget = 50;
-    tempSlider.value = 50;
+    state.temp = TEMP_IDEAL; state.ph = PH_IDEAL;
+    state.coolerTarget = 50; tempSlider.value = 50;
+    state.tempShock = null; state.phShock = null;
     state.tempDangerSince = 0; state.phDangerSince = 0;
     if (state.vaccines <= 0) finishGame();
   }
@@ -258,13 +272,23 @@
     state.eventUntil = state.time - 2.2;
   }
 
+  function startShock(target, total, durationSec){
+    // Apply `total` units linearly over `durationSec`.
+    // target = 'temp' or 'ph'.
+    const perSec = total / durationSec;
+    state[target + 'Shock'] = { perSec, remaining: total };
+  }
+
   function triggerAttack(){
-    const opts = ['heat','cold','acid','base','drop','drop'];  // drop a bit more common
+    const elapsed = 90 - state.time;
+    // Difficulty scales a *little* — never enough to one-shot.
+    const mag = 0.85 + elapsed * 0.012;  // 0.85 → 1.93 across game
+    const opts = ['heat','cold','acid','base','drop','drop'];
     const pick = opts[Math.floor(Math.random()*opts.length)];
-    if (pick === 'heat')  { state.temp = clamp01(state.temp + 30); showEvent('🔥 Heat surge!'); }
-    if (pick === 'cold')  { state.temp = clamp01(state.temp - 30); showEvent('🧊 Cold shock!'); }
-    if (pick === 'acid')  { state.ph   = clamp01(state.ph   - 28); showEvent('🍋 Acid leak!'); }
-    if (pick === 'base')  { state.ph   = clamp01(state.ph   + 28); showEvent('🧂 Base spill!'); }
+    if (pick === 'heat')  { startShock('temp', +14 * mag, 3.0); showEvent('🔥 Heat creeping up…'); }
+    if (pick === 'cold')  { startShock('temp', -14 * mag, 3.0); showEvent('🧊 Cold creeping in…'); }
+    if (pick === 'acid')  { startShock('ph',   -14 * mag, 3.0); showEvent('🍋 Acid leaking in…'); }
+    if (pick === 'base')  { startShock('ph',   +14 * mag, 3.0); showEvent('🧂 Base seeping in…'); }
     if (pick === 'drop')  { triggerFlight(); }
   }
 
@@ -297,21 +321,25 @@
     }
   });
 
-  function gaugeColor(v){
+  function tempColor(c){
+    if (c < SAFE_LO || c > SAFE_HI) return '#c0392b';
+    if (c < SAFE_LO + 10 || c > SAFE_HI - 10) return '#e0a52a';
+    return '#1f5b3a';
+  }
+  function phColor(v){
     if (v < 25 || v > 75) return '#c0392b';
     if (v < 35 || v > 65) return '#e0a52a';
     return '#1f5b3a';
   }
 
   function render(){
-    tempVal.textContent = Math.round(state.temp);
-    // Map 0..100 internal → pH 0..14 for display, ideal ≈ 7
+    const c = Math.round(state.temp);
+    tempVal.textContent = (c > 0 ? '+' : '') + c;
+    tempVal.style.color = tempColor(state.temp);
     const phDisplay = (state.ph / 100 * 14).toFixed(1);
     phVal.textContent = phDisplay;
-    tempVal.style.color = gaugeColor(state.temp);
-    phVal.style.color = gaugeColor(state.ph);
+    phVal.style.color = phColor(state.ph);
 
-    // Vaccine box vertical position during flight
     if (state.flight) {
       boxWrap.style.transform = `translateY(${state.flight.y}px) rotate(${state.flight.y*0.4}deg)`;
     }
@@ -328,24 +356,41 @@
     if (state.time <= 0) return finishGame();
 
     const elapsed = 90 - state.time;
-    const diff = 1 + elapsed / 45;
+    const diff = 1 + elapsed / 60;  // 1.0 → 2.5 across game (gentler than before)
 
-    // Heat drift: bus is hot. Slider sets cooler intensity; 50 is neutral.
-    // Below 50 = cooler is cooling. Above 50 = heater is heating.
-    const coolerEffect = (state.coolerTarget - 50) * 0.18; // +/- 9 per sec at extreme
-    state.temp = clamp01(state.temp + (3.0 * diff + coolerEffect) * dt);
+    // Natural drift — bus interior warms slowly.
+    // Slider 50 = neutral. Below 50 = cooler is OFF / heater on. Above 50 = cooler engaged.
+    // At slider=100 the cooler pulls ~6°C/s; at slider=50 no effect; at slider=0 it warms ~3°C/s.
+    const coolerEffect = (state.coolerTarget - 50) / 50; // -1..+1
+    const coolingRate  = coolerEffect * 6.0;             // -3..+6 °C/s removed (positive = cooling)
+    const naturalWarming = 0.9 * diff;                   // °C/s
+    state.temp = clampT(state.temp + (naturalWarming - coolingRate) * dt);
 
-    // pH drift: bus vibration acidifies things over time
-    state.ph = clamp01(state.ph - (0.8 * diff) * dt + (Math.random()-0.5) * 0.4 * dt);
+    // pH drifts slowly toward acidic (vibration)
+    state.ph = clampPH(state.ph - 0.35 * diff * dt + (Math.random()-0.5) * 0.3 * dt);
 
-    // Danger tracking
-    if (state.temp < 25 || state.temp > 75) {
+    // Apply gradual shocks
+    if (state.tempShock) {
+      const step = state.tempShock.perSec * dt;
+      state.temp = clampT(state.temp + step);
+      state.tempShock.remaining -= Math.abs(step);
+      if (state.tempShock.remaining <= 0) state.tempShock = null;
+    }
+    if (state.phShock) {
+      const step = state.phShock.perSec * dt;
+      state.ph = clampPH(state.ph + step);
+      state.phShock.remaining -= Math.abs(step);
+      if (state.phShock.remaining <= 0) state.phShock = null;
+    }
+
+    // Danger zones: outside the safe band only.
+    if (state.temp < SAFE_LO || state.temp > SAFE_HI) {
       state.tempDangerSince += dt;
-      if (state.tempDangerSince > 2.0) applyDamage('🌡 Temperature failure');
+      if (state.tempDangerSince > 2.5) applyDamage('🌡 Temperature failure');
     } else state.tempDangerSince = 0;
     if (state.ph < 25 || state.ph > 75) {
       state.phDangerSince += dt;
-      if (state.phDangerSince > 2.0) applyDamage('🧪 pH failure');
+      if (state.phDangerSince > 2.5) applyDamage('🧪 pH failure');
     } else state.phDangerSince = 0;
 
     // Attacks
@@ -402,10 +447,13 @@
     state.coolerTarget = +tempSlider.value;
   });
 
-  // Drag puffer: drop a buffer onto the vaccine box to fix pH
+  // Drag puffer: drop a buffer onto the vaccine box to fix pH.
+  // Uses setPointerCapture so iOS / Android reliably deliver move events.
   pufferEl.addEventListener('pointerdown', (e) => {
     if (!state || state.ended) return;
     e.preventDefault();
+    try { pufferEl.setPointerCapture(e.pointerId); } catch(_) {}
+
     const droplet = document.createElement('div');
     droplet.className = 'vt-droplet';
     droplet.textContent = '💧';
@@ -418,24 +466,23 @@
       droplet.style.top  = ev.clientY + 'px';
     }
     function up(ev){
-      document.removeEventListener('pointermove', move);
-      document.removeEventListener('pointerup', up);
-      document.removeEventListener('pointercancel', up);
-      // check if released over the vaccine box
-      const els = document.elementsFromPoint(ev.clientX, ev.clientY);
-      const onBox = els.some(el => el === boxWrap || boxWrap.contains(el));
+      pufferEl.removeEventListener('pointermove', move);
+      pufferEl.removeEventListener('pointerup', up);
+      pufferEl.removeEventListener('pointercancel', up);
+      try { pufferEl.releasePointerCapture(ev.pointerId); } catch(_) {}
       droplet.remove();
+      const els = document.elementsFromPoint(ev.clientX, ev.clientY);
+      const onBox = els.some(el => el === boxWrap || (boxWrap && boxWrap.contains(el)));
       if (onBox) {
-        // Push pH back toward neutral (50)
-        const delta = 50 - state.ph;
-        state.ph = clamp01(state.ph + Math.sign(delta) * Math.min(14, Math.abs(delta)));
+        const delta = PH_IDEAL - state.ph;
+        state.ph = clampPH(state.ph + Math.sign(delta) * Math.min(18, Math.abs(delta)));
         showEvent('💧 Buffer added');
         render();
       }
     }
-    document.addEventListener('pointermove', move);
-    document.addEventListener('pointerup', up);
-    document.addEventListener('pointercancel', up);
+    pufferEl.addEventListener('pointermove', move);
+    pufferEl.addEventListener('pointerup', up);
+    pufferEl.addEventListener('pointercancel', up);
   });
 
   gateStart(startBtn, () => {
