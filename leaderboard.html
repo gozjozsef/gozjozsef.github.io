@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Leaderboard — Biology Game Collection</title>
+<link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<div class="lb-shell">
+  <a class="lb-back" href="index.html">← Back to main menu</a>
+
+  <header class="lb-hero">
+    <div class="lb-hero-bg"></div>
+    <div class="lb-hero-inner">
+      <p class="lb-kicker">Class Standings</p>
+      <h1>Who's on top?</h1>
+      <p class="lb-tagline">Total <i class="atp-icon"></i> earned across every chapter. First place takes glory — everyone else takes notes.</p>
+    </div>
+  </header>
+
+  <div id="lb-board"></div>
+
+  <p class="lb-footnote">
+    Scores are first-attempt only. Replays are practice and don't change your standing.
+  </p>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/leaderboard.js"></script>
+<script>
+const board = document.getElementById('lb-board');
+
+function avatarHTML(p, big) {
+  const sz = big ? 56 : 36;
+  if (p.photo) return `<img class="lb-avi" style="width:${sz}px;height:${sz}px" src="${p.photo}" alt=""/>`;
+  const initial = (p.name||'?').trim().charAt(0).toUpperCase();
+  return `<div class="lb-avi lb-avi-fb" style="width:${sz}px;height:${sz}px;font-size:${sz*0.45}px">${initial}</div>`;
+}
+
+function medalEmoji(rank) {
+  if (rank === 1) return '🥇';
+  if (rank === 2) return '🥈';
+  if (rank === 3) return '🥉';
+  return '';
+}
+
+function rowHTML(p, rank, opts) {
+  opts = opts || {};
+  const mine = opts.mine ? 'lb-row-me' : '';
+  const tier = rank <= 3 ? `lb-row-top lb-row-top${rank}` : '';
+  return `
+    <div class="lb-row ${tier} ${mine}">
+      <div class="lb-rank-num">
+        <span class="lb-medal">${medalEmoji(rank) || `#${rank}`}</span>
+      </div>
+      ${avatarHTML(p, rank <= 3)}
+      <div class="lb-name-wrap">
+        <div class="lb-row-name">${p.name||'Anonymous'} ${opts.mine ? '<span class="lb-you">YOU</span>' : ''}</div>
+        <div class="lb-row-meta">${p.chapters} chapter${p.chapters===1?'':'s'} · ${Math.round(p.combined)} total</div>
+      </div>
+      <div class="lb-row-atp">
+        <strong>${Math.round(p.combined)}</strong>
+        <i class="atp-icon"></i>
+      </div>
+    </div>`;
+}
+
+async function load() {
+  if (!window.BioLB.enabled) {
+    board.innerHTML = `<div class="lb-card lb-empty">
+      <h2>Leaderboard not configured</h2>
+      <p>Open <code>js/config.js</code> and follow the setup steps to connect Firebase. Games still work in offline mode.</p>
+    </div>`;
+    return;
+  }
+  if (!window.BioLB.user) {
+    board.innerHTML = `<div class="lb-card lb-empty">
+      <h2>Sign in to see the board</h2>
+      <p>Use the chip in the bottom-right to sign in with Google. You only need to do this once.</p>
+    </div>`;
+    return;
+  }
+
+  board.innerHTML = `<div class="lb-card lb-loading">Loading rankings…</div>`;
+  try {
+    const players = await window.BioLB.fetchCombined();
+    if (!players.length) {
+      board.innerHTML = `<div class="lb-card lb-empty">
+        <h2>Nobody has scored yet</h2>
+        <p>Be the first — finish a game or the final test to claim #1.</p>
+      </div>`;
+      return;
+    }
+    const myUid = window.BioLB.user.uid;
+    const myIdx = players.findIndex(p => p.uid === myUid);
+    const top5 = players.slice(0, 5);
+
+    let nearMe = '';
+    if (myIdx >= 5) {
+      const lo = Math.max(5, myIdx - 2);
+      const hi = Math.min(players.length, myIdx + 3);
+      const slice = players.slice(lo, hi);
+      nearMe = `
+        <div class="lb-section-title">Your position</div>
+        <div class="lb-list">
+          ${slice.map((p, i) => rowHTML(p, lo + i + 1, { mine: p.uid === myUid })).join('')}
+        </div>
+        ${myIdx > 0 ? `<div class="lb-gap-msg">
+          <strong>${Math.round((players[myIdx-1].combined - players[myIdx].combined))}</strong>
+          <i class="atp-icon"></i> behind #${myIdx} — one good test could close it.
+        </div>` : ''}
+      `;
+    } else {
+      const me = players[myIdx];
+      if (me) {
+        if (myIdx === 0) {
+          nearMe = `<div class="lb-gap-msg lb-gap-king">👑 You're #1 in the class. Don't get comfortable.</div>`;
+        } else {
+          const ahead = Math.round(players[myIdx-1].combined - me.combined);
+          nearMe = `<div class="lb-gap-msg">
+            <strong>${ahead}</strong> <i class="atp-icon"></i> behind #${myIdx} — keep pushing.
+          </div>`;
+        }
+      }
+    }
+
+    board.innerHTML = `
+      <div class="lb-section-title">Top 5</div>
+      <div class="lb-list lb-list-top">
+        ${top5.map((p, i) => rowHTML(p, i + 1, { mine: p.uid === myUid })).join('')}
+      </div>
+      ${nearMe}
+    `;
+  } catch (e) {
+    board.innerHTML = `<div class="lb-card lb-empty"><p>Could not load: ${e.message||e}</p></div>`;
+  }
+}
+
+window.BioLB.onAuthChange(load);
+</script>
+</body>
+</html>
