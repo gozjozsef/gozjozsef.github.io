@@ -71,7 +71,7 @@
       <p class="lede">You are a dendritic cell. Collect each of the 5 bacteria types and deliver them to the lymph node. Worth <strong>100<i class="atp-icon"></i></strong>.</p>
 
       <div id="g2-start" class="game-start">
-        <p>13 bacteria spawn in 6 colors — uneven mix (e.g. 3 red, 2 blue, 1 yellow…). Move with the joystick (or arrow keys), touch a bacterium to grab it, then enter the lymph node to deliver. Only the <strong>first</strong> of each color scores — duplicates are wasted. Faster = more <i class="atp-icon"></i>, cap 100.</p>
+        <p>15 bacteria spawn in 6 colors — uneven mix (e.g. 4 red, 3 blue, 1 yellow…). Move with the joystick (or arrow keys), touch a bacterium to grab it, then enter the lymph node to deliver. Only the <strong>first</strong> of each color scores — duplicates are wasted. Faster = more <i class="atp-icon"></i>, cap 100.</p>
         <button class="btn" id="g2-start-btn">Start game</button>
       </div>
 
@@ -359,10 +359,10 @@
   const deliveredEl = document.getElementById('g2-delivered');
   const carryEl = document.getElementById('g2-carry');
 
-  const COLORS = ['#ff7676','#64b5f6','#7be0c8','#ffd54f','#ba68c8','#ff8a65'];
-  const NAMES  = ['Red','Blue','Teal','Yellow','Purple','Orange'];
+  const COLORS = ['#ff7676','#64b5f6','#7be0c8','#ffd54f','#ba68c8','#8d6e63'];
+  const NAMES  = ['Red','Blue','Teal','Yellow','Purple','Brown'];
   const TOTAL_TYPES = COLORS.length; // 6
-  const TOTAL_BACT  = 13;
+  const TOTAL_BACT  = 15;
 
   let ctx, W, H, dpr, state, raf;
 
@@ -452,8 +452,9 @@
   }
 
   function step(dt){
-    // Scale player speed with canvas size so mobile isn't a flick-to-finish.
-    const speed = Math.max(140, Math.hypot(W, H) / 4.5);
+    // Scale player speed with canvas size, then knock it down ~33%
+    // so the field feels like work to cover.
+    const speed = Math.max(94, Math.hypot(W, H) / 4.5) * 0.67;
     state.player.x += state.joy.x*speed*dt;
     state.player.y += state.joy.y*speed*dt;
     state.player.x = Math.max(24, Math.min(W-24, state.player.x));

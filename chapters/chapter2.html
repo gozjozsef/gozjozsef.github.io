@@ -426,8 +426,8 @@
     if (prevKey) pool = pool.filter(k => k !== prevKey);
     const k = pool[Math.floor(Math.random()*pool.length)];
     const v = VIRUSES[k];
-    const filled = {};
-    v.parts.forEach(p => filled[p] = false);
+    // ARRAY indexed by position in v.parts — so b.filled.every() works.
+    const filled = v.parts.map(() => false);
     return { key: k, def: v, filled };
   }
 

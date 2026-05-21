@@ -424,11 +424,10 @@
     const diff = 1 + elapsed / 60;  // 1.0 → 2.5 across game (gentler than before)
 
     // Natural drift — bus interior warms slowly.
-    // Slider 50 = neutral. Above 50 = cooler engaged, below = heater.
-    // STRONG cooler so sliding to cold is unmistakable.
-    const coolerEffect = (state.coolerTarget - 50) / 50; // -1..+1
+    // Slider 0 = ❄ max cool, 100 = 🔥 max warm. Match the label direction.
+    const coolerEffect = (50 - state.coolerTarget) / 50; // +1 at slider=0, -1 at slider=100
     const coolingRate  = coolerEffect * 14.0;            // up to ±14 °C/s
-    const naturalWarming = 1.4 * diff;                   // bus warms ~1.4°C/s
+    const naturalWarming = 1.4 * diff;
     state.temp = clampT(state.temp + (naturalWarming - coolingRate) * dt);
 
     // pH drifts slowly toward acidic (vibration)
