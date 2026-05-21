@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Chapter 5 — Mendelian Genetics</title>
+<link rel="stylesheet" href="../style.css"/>
+</head>
+<body>
+
+<div class="chapter-shell">
+  <div class="chapter-header theme-mendel">
+    <a href="../index.html" class="back">← Back to main menu</a>
+    <h1>Chapter 5 · Mendelian Genetics &amp; Inheritance</h1>
+    <p>Punnett squares, dominance, sex linkage, pedigree puzzles.</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-target="g1">Game 1 · Dragon Breeder</button>
+    <button class="tab" data-target="g2">Game 2 · Pedigree Puzzle</button>
+    <button class="tab" data-target="g3">Game 3 · Punnett Speedrun</button>
+    <button class="tab" data-target="quiz">Final Test</button>
+  </div>
+
+  <!-- Dragon Breeder -->
+  <section id="g1" class="panel active">
+    <div class="game-card">
+      <h2>Dragon Breeder</h2>
+      <p class="lede">Breed dragons with hidden alleles. Each generation you choose two parents. Try to reach the target phenotype in as few crosses as possible.</p>
+      <p style="margin-top:0"><strong>Target:</strong> <span id="db-target"></span></p>
+      <div id="db-pop" class="grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px"></div>
+      <div class="hud"><span>Generation: <b id="db-gen">0</b></span><span>Target reached: <b id="db-won">no</b></span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="db-breed">Breed selected pair</button>
+        <button class="btn btn-secondary" id="db-reset">Reset</button>
+        <button class="btn btn-ghost" id="db-punnett">Show last Punnett</button>
+      </div>
+      <p class="feedback" id="db-feedback"></p>
+      <div id="db-punnett-out"></div>
+    </div>
+  </section>
+
+  <!-- Pedigree Puzzle -->
+  <section id="g2" class="panel">
+    <div class="game-card">
+      <h2>Pedigree Puzzle</h2>
+      <p class="lede">From the pattern of affected (filled) and unaffected (open) family members, deduce the mode of inheritance.</p>
+      <div id="pp-stage"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" data-pp="AD">Autosomal Dominant</button>
+        <button class="btn" data-pp="AR">Autosomal Recessive</button>
+        <button class="btn" data-pp="XR">X-linked Recessive</button>
+        <button class="btn" data-pp="XD">X-linked Dominant</button>
+      </div>
+      <p class="feedback" id="pp-feedback"></p>
+      <button class="btn btn-ghost" id="pp-next">Next pedigree →</button>
+    </div>
+  </section>
+
+  <!-- Punnett Speedrun -->
+  <section id="g3" class="panel">
+    <div class="game-card">
+      <h2>Punnett Speedrun</h2>
+      <p class="lede">Fill in the Punnett square as fast as you can. Drop the correct genotype into each box.</p>
+      <div id="ps-stage"></div>
+      <div class="hud"><span>Round: <b id="ps-r">1</b>/5</span><span>Score: <b id="ps-s">0</b></span><span>Time: <b id="ps-t">0.0</b>s</span></div>
+      <p class="feedback" id="ps-feedback"></p>
+      <button class="btn" id="ps-next">Next puzzle →</button>
+    </div>
+  </section>
+
+  <section id="quiz" class="panel"><div class="quiz" id="quizRoot"><h2>Final Test — Genetics</h2></div></section>
+</div>
+
+<script src="../js/config.js"></script>
+<script src="../js/leaderboard.js"></script>
+<script src="../js/chapter.js"></script>
+<script>
+
+/* ===== Dragon Breeder ===== */
+(function(){
+  // 3 genes: scale (R/r dominant red over green), wing (W/w dominant large over small), fire (F/f dominant blue over orange)
+  let pop, gen, won = false, lastCross = null;
+  const pheno = g => ({
+    scale: (g.s[0]==='R'||g.s[1]==='R') ? 'red' : 'green',
+    wing:  (g.w[0]==='W'||g.w[1]==='W') ? 'big' : 'small',
+    fire:  (g.f[0]==='F'||g.f[1]==='F') ? 'blue' : 'orange'
+  });
+  const target = { scale:'green', wing:'big', fire:'orange' };
+  document.getElementById('db-target').textContent = `green scales · big wings · orange fire (genotype must show all three).`;
+
+  function rand(a){return a[Math.floor(Math.random()*a.length)];}
+  function makeAllele(p){ return [rand([p,p.toLowerCase()]), rand([p,p.toLowerCase()])]; }
+
+  function reset(){
+    pop = []; gen = 0; won = false;
+    for (let i=0;i<6;i++){
+      pop.push({
+        id: i,
+        s: makeAllele('R'),
+        w: makeAllele('W'),
+        f: makeAllele('F')
+      });
+    }
+    document.getElementById('db-won').textContent = 'no';
+    render();
+  }
+
+  function gameteFor(g, gene){
+    return g[gene][Math.floor(Math.random()*2)];
+  }
+  function cross(a,b){
+    return {
+      id: pop.length,
+      s: [gameteFor(a,'s'), gameteFor(b,'s')],
+      w: [gameteFor(a,'w'), gameteFor(b,'w')],
+      f: [gameteFor(a,'f'), gameteFor(b,'f')]
+    };
+  }
+
+  function render(){
+    document.getElementById('db-gen').textContent = gen;
+    const pop$ = document.getElementById('db-pop');
+    pop$.innerHTML = pop.map(d=>{
+      const p = pheno(d);
+      const matchTarget = p.scale==='green'&&p.wing==='big'&&p.fire==='orange';
+      return `<label class="tile" style="text-align:left;${matchTarget?'border:2px solid #1f5b3a;background:#d4f0e0':''}">
+        <input type="checkbox" data-id="${d.id}" style="display:none"/>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+          <svg viewBox="0 0 50 40" width="40" height="32">
+            <ellipse cx="25" cy="25" rx="20" ry="10" fill="${p.scale==='red'?'#ff6680':'#7be0c8'}"/>
+            <path d="M5 20 Q15 ${p.wing==='big'?5:15} 25 20" stroke="${p.scale==='red'?'#a8324a':'#1f7a5a'}" stroke-width="2" fill="none"/>
+            <circle cx="40" cy="20" r="3" fill="${p.fire==='blue'?'#5aa9ff':'#ffb86b'}"/>
+          </svg>
+          <strong style="font-size:13px">#${d.id}</strong>
+        </div>
+        <div style="font-size:11px;font-family:monospace;color:var(--ink-soft)">
+          ${d.s.join('')} ${d.w.join('')} ${d.f.join('')}
+        </div>
+        <div style="font-size:11px">${p.scale} · ${p.wing} · ${p.fire}</div>
+      </label>`;
+    }).join('');
+    // Click selection
+    pop$.querySelectorAll('label').forEach((lbl,i)=>{
+      lbl.addEventListener('click', e=>{
+        const cbs = pop$.querySelectorAll('input');
+        const checked = [...pop$.querySelectorAll('input:checked')];
+        if (cbs[i].checked) cbs[i].checked = false;
+        else { if (checked.length >= 2) checked[0].checked = false; cbs[i].checked = true; }
+        pop$.querySelectorAll('label').forEach((l,j)=>{
+          l.style.outline = cbs[j].checked ? '3px solid #d97a3a' : '';
+        });
+      });
+    });
+  }
+
+  document.getElementById('db-breed').addEventListener('click', ()=>{
+    const ids = [...document.querySelectorAll('#db-pop input:checked')].map(c=>+c.dataset.id);
+    if (ids.length !== 2) {
+      document.getElementById('db-feedback').textContent = 'Select two parents first.';
+      document.getElementById('db-feedback').className='feedback bad';
+      return;
+    }
+    const a = pop.find(p=>p.id===ids[0]); const b = pop.find(p=>p.id===ids[1]);
+    // Produce 4 offspring
+    const kids = [cross(a,b), cross(a,b), cross(a,b), cross(a,b)];
+    pop = pop.concat(kids); gen++;
+    lastCross = { a, b, kids };
+    if (kids.some(k=>{const p=pheno(k);return p.scale===target.scale&&p.wing===target.wing&&p.fire===target.fire;})) {
+      won = true;
+      document.getElementById('db-won').textContent = 'YES — generation ' + gen;
+      document.getElementById('db-feedback').textContent = `Target dragon bred in ${gen} generation(s)! Smaller numbers = better luck/strategy.`;
+      document.getElementById('db-feedback').className='feedback good';
+    } else {
+      document.getElementById('db-feedback').textContent = 'Bred 4 offspring. Inspect them — recessive alleles can be hidden!';
+      document.getElementById('db-feedback').className='feedback';
+    }
+    render();
+  });
+  document.getElementById('db-reset').addEventListener('click', reset);
+
+  document.getElementById('db-punnett').addEventListener('click', ()=>{
+    if (!lastCross) return;
+    const a = lastCross.a, b = lastCross.b;
+    const gene = ['s','w','f'][0]; // show scale gene
+    const ag = [a.s[0],a.s[1]], bg = [b.s[0],b.s[1]];
+    let html = '<h4>Last Punnett (scale gene): ' + a.s.join('') + ' × ' + b.s.join('') + '</h4><table style="border-collapse:collapse"><tr><td></td>';
+    bg.forEach(x=>html+=`<th style="padding:6px;border:1px solid #999">${x}</th>`);
+    html+='</tr>';
+    ag.forEach(y=>{
+      html += `<tr><th style="padding:6px;border:1px solid #999">${y}</th>`;
+      bg.forEach(x=>{
+        const geno = [y,x].sort().reverse().join('');
+        html += `<td style="padding:8px;border:1px solid #999;text-align:center">${geno}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</table>';
+    document.getElementById('db-punnett-out').innerHTML = html;
+  });
+
+  reset();
+})();
+
+/* ===== Pedigree Puzzle ===== */
+(function(){
+  // Each puzzle: an SVG pedigree string + mode of inheritance
+  const puzzles = [
+    {
+      mode:'AD',
+      // simple 3-gen tree: G1 affected dad + unaffected mom → 2 of 3 kids affected → grandchildren
+      svg:`<svg viewBox="0 0 300 200" class="svg-stage" height="200">
+        <rect x="40" y="20" width="20" height="20" fill="#a8324a"/>
+        <circle cx="100" cy="30" r="10" fill="none" stroke="#1a2433" stroke-width="2"/>
+        <line x1="60" y1="30" x2="90" y2="30" stroke="#1a2433"/>
+        <line x1="75" y1="30" x2="75" y2="60" stroke="#1a2433"/>
+        <line x1="35" y1="60" x2="115" y2="60" stroke="#1a2433"/>
+        <line x1="40" y1="60" x2="40" y2="75" stroke="#1a2433"/>
+        <line x1="75" y1="60" x2="75" y2="75" stroke="#1a2433"/>
+        <line x1="115" y1="60" x2="115" y2="75" stroke="#1a2433"/>
+        <rect x="30" y="75" width="20" height="20" fill="#a8324a"/>
+        <circle cx="75" cy="85" r="10" fill="none" stroke="#1a2433" stroke-width="2"/>
+        <rect x="105" y="75" width="20" height="20" fill="#a8324a"/>
+        <text x="150" y="120" font-family="monospace" font-size="12" fill="#1a2433">Father affected. ⅔ children affected, both sexes. Trait appears every generation.</text>
+      </svg>`,
+      explain:'Trait in every generation, both sexes equally, affected parent → ~50% affected kids = autosomal dominant.'
+    },
+    {
+      mode:'AR',
+      svg:`<svg viewBox="0 0 300 200" class="svg-stage" height="200">
+        <rect x="40" y="20" width="20" height="20" fill="none" stroke="#1a2433" stroke-width="2"/>
+        <circle cx="100" cy="30" r="10" fill="none" stroke="#1a2433" stroke-width="2"/>
+        <line x1="60" y1="30" x2="90" y2="30" stroke="#1a2433"/>
+        <line x1="75" y1="30" x2="75" y2="60" stroke="#1a2433"/>
+        <line x1="35" y1="60" x2="115" y2="60" stroke="#1a2433"/>
+        <rect x="30" y="75" width="20" height="20" fill="#a8324a"/>
+        <circle cx="75" cy="85" r="10" fill="#a8324a"/>
+        <rect x="105" y="75" width="20" height="20" fill="none" stroke="#1a2433" stroke-width="2"/>
+        <line x1="40" y1="60" x2="40" y2="75" stroke="#1a2433"/>
+        <line x1="75" y1="60" x2="75" y2="75" stroke="#1a2433"/>
+        <line x1="115" y1="60" x2="115" y2="75" stroke="#1a2433"/>
+        <text x="150" y="120" font-family="monospace" font-size="12" fill="#1a2433">Unaffected parents (carriers). Two affected children, both sexes.</text>
+      </svg>`,
+      explain:'Unaffected (carrier) parents with affected offspring + both sexes affected → autosomal recessive.'
+    },
+    {
+      mode:'XR',
+      svg:`<svg viewBox="0 0 300 200" class="svg-stage" height="200">
+        <rect x="40" y="20" width="20" height="20" fill="none" stroke="#1a2433" stroke-width="2"/>
+        <circle cx="100" cy="30" r="10" fill="none" stroke="#1a2433" stroke-width="2"/>
+        <line x1="60" y1="30" x2="90" y2="30" stroke="#1a2433"/>
+        <line x1="75" y1="30" x2="75" y2="60" stroke="#1a2433"/>
+        <line x1="35" y1="60" x2="115" y2="60" stroke="#1a2433"/>
+        <rect x="30" y="75" width="20" height="20" fill="#a8324a"/>
+        <circle cx="75" cy="85" r="10" fill="none" stroke="#1a2433" stroke-width="2"/>
+        <rect x="105" y="75" width="20" height="20" fill="#a8324a"/>
+        <line x1="40" y1="60" x2="40" y2="75" stroke="#1a2433"/>
+        <line x1="75" y1="60" x2="75" y2="75" stroke="#1a2433"/>
+        <line x1="115" y1="60" x2="115" y2="75" stroke="#1a2433"/>
+        <text x="150" y="120" font-family="monospace" font-size="12" fill="#1a2433">Only males affected. Mother is unaffected (carrier).</text>
+      </svg>`,
+      explain:'Only males affected, carrier mother, no father-to-son transmission → X-linked recessive (e.g. haemophilia, colour-blindness).'
+    }
+  ];
+  let idx = 0;
+  const stage = document.getElementById('pp-stage');
+  const fb = document.getElementById('pp-feedback');
+  function show(){
+    stage.innerHTML = puzzles[idx].svg;
+    fb.textContent='';
+    document.querySelectorAll('[data-pp]').forEach(b=>b.disabled=false);
+  }
+  document.querySelectorAll('[data-pp]').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      if (b.dataset.pp === puzzles[idx].mode) {
+        fb.textContent='Correct! '+puzzles[idx].explain; fb.className='feedback good';
+      } else {
+        fb.textContent='Not quite — '+puzzles[idx].explain; fb.className='feedback bad';
+      }
+      document.querySelectorAll('[data-pp]').forEach(x=>x.disabled=true);
+    });
+  });
+  document.getElementById('pp-next').addEventListener('click', ()=>{ idx = (idx+1) % puzzles.length; show(); });
+  show();
+})();
+
+/* ===== Punnett Speedrun ===== */
+(function(){
+  let round = 1, score = 0, tStart, timerInt;
+  const stage = document.getElementById('ps-stage');
+  const fb = document.getElementById('ps-feedback');
+
+  function makePuzzle(){
+    // monohybrid cross with 2 alleles
+    const alleles = ['A','a'];
+    const dad = [pick(alleles), pick(alleles)];
+    const mom = [pick(alleles), pick(alleles)];
+    const cells = [
+      [dad[0]+mom[0], dad[0]+mom[1]],
+      [dad[1]+mom[0], dad[1]+mom[1]]
+    ].map(row=>row.map(g=>g.split('').sort().reverse().join('')));
+    return { dad, mom, cells };
+  }
+
+  let puzzle, filled;
+  function render(){
+    puzzle = makePuzzle();
+    filled = [['','',''],['','',''],['','','']];
+    const html = `<p>Cross: <b>${puzzle.dad.join('')}</b> × <b>${puzzle.mom.join('')}</b></p>
+      <div style="display:grid;grid-template-columns:repeat(3,60px);gap:2px;margin:10px 0">
+        <div></div>
+        <div class="tile" style="background:var(--bg-2)">${puzzle.mom[0]}</div>
+        <div class="tile" style="background:var(--bg-2)">${puzzle.mom[1]}</div>
+        <div class="tile" style="background:var(--bg-2)">${puzzle.dad[0]}</div>
+        <input class="tile ps-in" data-r="0" data-c="0" />
+        <input class="tile ps-in" data-r="0" data-c="1" />
+        <div class="tile" style="background:var(--bg-2)">${puzzle.dad[1]}</div>
+        <input class="tile ps-in" data-r="1" data-c="0" />
+        <input class="tile ps-in" data-r="1" data-c="1" />
+      </div>
+      <button class="btn" id="ps-check">Check</button>`;
+    stage.innerHTML = html;
+    stage.querySelectorAll('input').forEach(inp=>{
+      inp.style.width='50px'; inp.style.textAlign='center'; inp.style.fontFamily='monospace'; inp.style.fontSize='16px';
+    });
+    document.getElementById('ps-check').addEventListener('click', ()=>{
+      let correct = 0, total = 4;
+      stage.querySelectorAll('input').forEach(inp=>{
+        const r = +inp.dataset.r, c = +inp.dataset.c;
+        const expected = puzzle.cells[r][c];
+        const v = inp.value.trim().split('').sort().reverse().join('');
+        if (v === expected) { correct++; inp.style.background='#d4f0e0'; }
+        else inp.style.background='#ffdcdc';
+      });
+      const tElapsed = (performance.now() - tStart) / 1000;
+      score += correct;
+      document.getElementById('ps-s').textContent = score;
+      document.getElementById('ps-r').textContent = round;
+      if (correct === total) {
+        fb.textContent = `All correct in ${tElapsed.toFixed(1)}s! `;
+        fb.className='feedback good';
+      } else {
+        fb.textContent = `${correct}/${total} correct. Each cell = combine the row allele with the column allele.`;
+        fb.className='feedback bad';
+      }
+    });
+    tStart = performance.now();
+    clearInterval(timerInt);
+    timerInt = setInterval(()=>{
+      document.getElementById('ps-t').textContent = ((performance.now()-tStart)/1000).toFixed(1);
+    }, 100);
+  }
+  document.getElementById('ps-next').addEventListener('click', ()=>{
+    round = Math.min(5, round+1);
+    fb.textContent=''; render();
+  });
+  render();
+})();
+
+/* ===== Quiz ===== */
+buildQuiz('quizRoot', [
+  { q:'Genotype refers to:', options:['Observable traits','The genetic makeup (alleles)','The environment','The mRNA produced'], answer:1, explain:'Genotype = alleles inherited. Phenotype = the observable expression of that genotype.' },
+  { q:'In a heterozygous individual (Aa) with simple dominance, the phenotype is:', options:['Recessive trait','Dominant trait','Blend','None'], answer:1, explain:'A dominant allele masks the recessive in the heterozygote — only AA and Aa show the dominant trait.' },
+  { q:'A cross of Aa × Aa gives a phenotype ratio of:', options:['1:1','3:1 dominant:recessive','9:3:3:1','All dominant'], answer:1, explain:'Heterozygous × heterozygous monohybrid cross: ¼ AA, ½ Aa, ¼ aa → phenotype 3 dominant : 1 recessive.' },
+  { q:'A dihybrid test cross (AaBb × aabb) gives offspring ratios of:', options:['9:3:3:1','1:1:1:1','3:1','All identical'], answer:1, explain:'Test cross with double-recessive parent reveals the gamete ratios of the heterozygote: 1:1:1:1.' },
+  { q:'X-linked recessive conditions are more common in males because:', options:['Boys play harder','Males have one X — recessive allele is always expressed','Males have two X chromosomes','It is more dominant in males'], answer:1, explain:'Males are hemizygous for X-linked genes. There is no second X to mask a recessive allele.' },
+  { q:'Co-dominance is when:', options:['One allele is silent','Both alleles are fully expressed in the heterozygote','Alleles blend','Only the recessive is shown'], answer:1, explain:'Example: AB blood type — both A and B antigens are expressed.' },
+  { q:'Incomplete dominance produces:', options:['One trait shown','A blended intermediate phenotype','Three alleles','No phenotype'], answer:1, explain:'E.g. red × white snapdragons → pink. Neither allele fully dominates.' },
+  { q:'A pedigree showing every generation affected, both sexes, suggests:', options:['Autosomal recessive','Autosomal dominant','X-linked recessive','Mitochondrial'], answer:1, explain:'Vertical transmission through generations affecting both sexes is the hallmark of autosomal dominant inheritance.' },
+  { q:'In ABO blood typing, alleles I^A, I^B, and i show:', options:['Simple dominance','Co-dominance between A and B; both dominant over i','Incomplete dominance','None'], answer:1, explain:'A and B are co-dominant to each other; both are dominant over i (recessive O allele).' },
+  { q:'The law of segregation says:', options:['Alleles assort independently','Each gamete carries only one allele of each gene','Genotype = phenotype','All offspring are identical'], answer:1, explain:'During meiosis, paired alleles separate so each gamete receives one — basis of 1:1 ratios in test crosses.' },
+  { q:'The law of independent assortment says:', options:['Genes on the same chromosome always travel together','Alleles of different genes segregate independently (if unlinked)','Genotype is fixed','All traits are dominant'], answer:1, explain:'Unlinked genes assort independently during meiosis — produces 9:3:3:1 dihybrid ratios.' },
+  { q:'A carrier of an autosomal recessive disease has genotype:', options:['Homozygous dominant (AA)','Heterozygous (Aa)','Homozygous recessive (aa)','None'], answer:1, explain:'Carriers carry one copy of the recessive allele but are unaffected.' }
+]);
+</script>
+</body>
+</html>

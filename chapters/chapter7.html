@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Chapter 7 — Ecology & Populations</title>
+<link rel="stylesheet" href="../style.css"/>
+</head>
+<body>
+
+<div class="chapter-shell">
+  <div class="chapter-header theme-ecology">
+    <a href="../index.html" class="back">← Back to main menu</a>
+    <h1>Chapter 7 · Ecology &amp; Population Dynamics</h1>
+    <p>Predator-prey, carrying capacity, food webs, biomes.</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-target="g1">Game 1 · Lotka-Volterra Lab</button>
+    <button class="tab" data-target="g2">Game 2 · Food Web Builder</button>
+    <button class="tab" data-target="g3">Game 3 · Biome Survivor</button>
+    <button class="tab" data-target="quiz">Final Test</button>
+  </div>
+
+  <!-- Lotka-Volterra Lab -->
+  <section id="g1" class="panel active">
+    <div class="game-card">
+      <h2>Lotka-Volterra Lab</h2>
+      <p class="lede">Adjust the parameters and watch the rabbit-fox dynamics. Goal: keep BOTH populations alive for at least 2 minutes (game time).</p>
+      <div class="controls">
+        <div class="control"><label>Rabbit birth rate (α) <span class="val" id="v-a">0.10</span></label><input type="range" id="lv-a" min="0" max="0.3" step="0.005" value="0.10"/></div>
+        <div class="control"><label>Predation rate (β) <span class="val" id="v-b">0.002</span></label><input type="range" id="lv-b" min="0" max="0.01" step="0.0001" value="0.002"/></div>
+        <div class="control"><label>Fox death rate (γ) <span class="val" id="v-c">0.10</span></label><input type="range" id="lv-c" min="0" max="0.3" step="0.005" value="0.10"/></div>
+        <div class="control"><label>Conversion eff. (δ) <span class="val" id="v-d">0.0008</span></label><input type="range" id="lv-d" min="0" max="0.005" step="0.0001" value="0.0008"/></div>
+        <div class="control"><label>Rabbit carrying capacity K <span class="val" id="v-k">500</span></label><input type="range" id="lv-k" min="100" max="2000" step="10" value="500"/></div>
+      </div>
+      <canvas id="lv-canvas" width="800" height="320"></canvas>
+      <p class="feedback" id="lv-feedback"></p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="lv-start">Start scenario</button>
+        <button class="btn btn-secondary" id="lv-drought">Disturbance: drought (rabbits −30%)</button>
+        <button class="btn btn-secondary" id="lv-hunt">Disturbance: hunting (foxes −30%)</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Food Web Builder -->
+  <section id="g2" class="panel">
+    <div class="game-card">
+      <h2>Food Web Builder</h2>
+      <p class="lede">Drag species cards onto the trophic levels: producer, primary consumer, secondary consumer, tertiary consumer, decomposer. Then remove one species and watch the cascade.</p>
+      <div id="fw-stage"></div>
+      <p class="feedback" id="fw-feedback"></p>
+    </div>
+  </section>
+
+  <!-- Biome Survivor -->
+  <section id="g3" class="panel">
+    <div class="game-card">
+      <h2>Biome Survivor</h2>
+      <p class="lede">You manage a small ecosystem. Each turn, allocate energy to producers, consumers, and decomposers. Reach 30 turns with all groups alive.</p>
+      <div id="bs-stage"></div>
+      <p class="feedback" id="bs-feedback"></p>
+    </div>
+  </section>
+
+  <section id="quiz" class="panel"><div class="quiz" id="quizRoot"><h2>Final Test — Ecology</h2></div></section>
+</div>
+
+<script src="../js/config.js"></script>
+<script src="../js/leaderboard.js"></script>
+<script src="../js/chapter.js"></script>
+<script>
+
+/* ===== Lotka-Volterra Lab ===== */
+(function(){
+  const c = document.getElementById('lv-canvas');
+  const ctx = fitCanvas(c, 800, 320);
+  const W=800, H=320;
+  let R = 200, F = 50;
+  let history = [];
+  let running = false, t = 0, lastT = 0;
+  ['a','b','c','d','k'].forEach(k=>{
+    const id = 'lv-'+k;
+    const el = document.getElementById(id);
+    el.addEventListener('input', ()=>{ document.getElementById('v-'+k).textContent = el.value; });
+  });
+  function getParams(){
+    return {
+      a:+document.getElementById('lv-a').value,
+      b:+document.getElementById('lv-b').value,
+      c:+document.getElementById('lv-c').value,
+      d:+document.getElementById('lv-d').value,
+      K:+document.getElementById('lv-k').value
+    };
+  }
+
+  function tick(now){
+    if (!running) return requestAnimationFrame(tick);
+    const dt = (now - lastT) / 1000;
+    lastT = now;
+    const p = getParams();
+    // Logistic prey + LV
+    const dR = (p.a * R * (1 - R/p.K) - p.b * R * F) * dt * 10;
+    const dF = (p.d * R * F - p.c * F) * dt * 10;
+    R = Math.max(0, R + dR);
+    F = Math.max(0, F + dF);
+    history.push({R,F});
+    if (history.length > 800) history.shift();
+    t += dt;
+    if ((R < 1 || F < 1) && t > 5) {
+      running = false;
+      document.getElementById('lv-feedback').textContent = (R<1 ? 'Rabbits went extinct!' : 'Foxes starved out!') + ' Adjust parameters and try again.';
+      document.getElementById('lv-feedback').className='feedback bad';
+    } else if (t > 120) {
+      running = false;
+      document.getElementById('lv-feedback').textContent = 'Stable for 2 minutes — both species survived. Notice the oscillating cycles.';
+      document.getElementById('lv-feedback').className='feedback good';
+    }
+    draw();
+    requestAnimationFrame(tick);
+  }
+  function draw(){
+    ctx.fillStyle='#1c3d24'; ctx.fillRect(0,0,W,H);
+    // Plot
+    ctx.strokeStyle='#7be0c8'; ctx.lineWidth=2; ctx.beginPath();
+    history.forEach((p,i)=>{
+      const x = (i/800)*W;
+      const y = H - (p.R/800)*H;
+      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    ctx.strokeStyle='#ff6680'; ctx.beginPath();
+    history.forEach((p,i)=>{
+      const x = (i/800)*W;
+      const y = H - (p.F/200)*H;
+      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    ctx.fillStyle='#7be0c8'; ctx.font='14px monospace';
+    ctx.fillText('Rabbits: ' + Math.round(R), 10, 20);
+    ctx.fillStyle='#ff6680';
+    ctx.fillText('Foxes: ' + Math.round(F), 10, 40);
+    ctx.fillStyle='rgba(255,255,255,.6)'; ctx.font='12px monospace';
+    ctx.fillText('Time: ' + t.toFixed(1) + 's / 120s', 10, 60);
+
+    // Dots in landscape
+    const nR = Math.min(120, Math.round(R/5));
+    const nF = Math.min(40, Math.round(F/2));
+    for (let i=0;i<nR;i++){
+      const px = (i*53)%W, py = 80 + (i*37)%(H-120);
+      ctx.fillStyle='#fff';
+      ctx.beginPath(); ctx.arc(px,py,3,0,Math.PI*2); ctx.fill();
+    }
+    for (let i=0;i<nF;i++){
+      const px = (i*71)%W, py = 100 + (i*53)%(H-140);
+      ctx.fillStyle='#d97a3a';
+      ctx.beginPath(); ctx.arc(px,py,5,0,Math.PI*2); ctx.fill();
+    }
+  }
+  document.getElementById('lv-start').addEventListener('click', ()=>{
+    R = 200; F = 50; t = 0; history = []; running = true; lastT = performance.now();
+    document.getElementById('lv-feedback').textContent='Simulation running…';
+    document.getElementById('lv-feedback').className='feedback';
+  });
+  document.getElementById('lv-drought').addEventListener('click', ()=>{ R *= 0.7; });
+  document.getElementById('lv-hunt').addEventListener('click', ()=>{ F *= 0.7; });
+
+  requestAnimationFrame(tick);
+})();
+
+/* ===== Food Web Builder ===== */
+(function(){
+  const species = [
+    { name:'Grass', level:'P', emoji:'🌿' },
+    { name:'Algae', level:'P', emoji:'🟢' },
+    { name:'Rabbit', level:'PC', emoji:'🐇' },
+    { name:'Grasshopper', level:'PC', emoji:'🦗' },
+    { name:'Frog', level:'SC', emoji:'🐸' },
+    { name:'Snake', level:'TC', emoji:'🐍' },
+    { name:'Hawk', level:'TC', emoji:'🦅' },
+    { name:'Fungi', level:'D', emoji:'🍄' },
+    { name:'Bacteria', level:'D', emoji:'🦠' }
+  ];
+  const levels = [
+    { code:'P', label:'Producers' },
+    { code:'PC', label:'Primary consumers' },
+    { code:'SC', label:'Secondary consumers' },
+    { code:'TC', label:'Tertiary consumers' },
+    { code:'D', label:'Decomposers' }
+  ];
+  const stage = document.getElementById('fw-stage');
+  const fb = document.getElementById('fw-feedback');
+  function render(){
+    stage.innerHTML = `<div style="display:grid;grid-template-columns:1fr 2fr;gap:14px">
+      <div><h4>Pool</h4><div class="dropzone" id="fw-pool">${
+        species.map(s=>`<div class="draggable" draggable="true" data-name="${s.name}" data-level="${s.level}">${s.emoji} ${s.name}</div>`).join('')
+      }</div></div>
+      <div>${
+        levels.map(l=>`<h4>${l.label}</h4><div class="dropzone" data-target="${l.code}" id="fw-${l.code}"></div>`).join('')
+      }</div></div>
+      <div style="margin-top:10px"><button class="btn" id="fw-check">Check arrangement</button></div>`;
+    addDnD();
+    document.getElementById('fw-check').addEventListener('click', check);
+  }
+  function addDnD(){
+    let dragged = null;
+    stage.querySelectorAll('.draggable').forEach(d=>{
+      d.addEventListener('dragstart', ()=>{ dragged = d; d.classList.add('dragging'); });
+      d.addEventListener('dragend', ()=>d.classList.remove('dragging'));
+    });
+    stage.querySelectorAll('.dropzone').forEach(z=>{
+      z.addEventListener('dragover', e=>{ e.preventDefault(); z.classList.add('over'); });
+      z.addEventListener('dragleave', ()=>z.classList.remove('over'));
+      z.addEventListener('drop', e=>{
+        e.preventDefault(); z.classList.remove('over');
+        if (dragged) z.appendChild(dragged);
+      });
+    });
+  }
+  function check(){
+    let correct = 0, total = species.length;
+    species.forEach(s=>{
+      const placed = stage.querySelector(`#fw-${s.level} [data-name="${s.name}"]`);
+      if (placed) { correct++; placed.style.background = '#d4f0e0'; }
+    });
+    const misplaced = stage.querySelectorAll('.dropzone[data-target] .draggable');
+    misplaced.forEach(d=>{
+      if (d.dataset.level !== d.parentNode.dataset.target) d.style.background = '#ffdcdc';
+    });
+    fb.textContent = `${correct}/${total} placed correctly. Remember: producers → primary → secondary → tertiary; decomposers recycle nutrients from every level.`;
+    fb.className = correct === total ? 'feedback good' : 'feedback bad';
+  }
+  render();
+})();
+
+/* ===== Biome Survivor ===== */
+(function(){
+  const stage = document.getElementById('bs-stage');
+  const fb = document.getElementById('bs-feedback');
+  let pop = { producers: 100, consumers: 50, decomposers: 30 };
+  let turn = 0;
+  function render(){
+    stage.innerHTML = `<div class="hud">
+        <span>Turn: <b>${turn}</b>/30</span>
+        <span class="good">🌱 Producers: <b>${Math.round(pop.producers)}</b></span>
+        <span>🦌 Consumers: <b>${Math.round(pop.consumers)}</b></span>
+        <span>🍄 Decomposers: <b>${Math.round(pop.decomposers)}</b></span>
+      </div>
+      <p>Allocate 10 energy points this turn:</p>
+      <div class="controls">
+        <div class="control"><label>To producers <span class="val" id="bsv-p">3</span></label><input type="range" id="bs-p" min="0" max="10" value="3"/></div>
+        <div class="control"><label>To consumers <span class="val" id="bsv-c">4</span></label><input type="range" id="bs-c" min="0" max="10" value="4"/></div>
+        <div class="control"><label>To decomposers <span class="val" id="bsv-d">3</span></label><input type="range" id="bs-d" min="0" max="10" value="3"/></div>
+      </div>
+      <button class="btn" id="bs-step">Next turn</button>`;
+    ['p','c','d'].forEach(k=>{
+      document.getElementById('bs-'+k).addEventListener('input', e=>{
+        document.getElementById('bsv-'+k).textContent = e.target.value;
+      });
+    });
+    document.getElementById('bs-step').addEventListener('click', step);
+  }
+  function step(){
+    const ap = +document.getElementById('bs-p').value;
+    const ac = +document.getElementById('bs-c').value;
+    const ad = +document.getElementById('bs-d').value;
+    if (ap + ac + ad !== 10) {
+      fb.textContent = 'Must sum to exactly 10 (currently ' + (ap+ac+ad) + ').';
+      fb.className='feedback bad'; return;
+    }
+    // Producers grow with allocated energy and decomposers recycling, eaten by consumers
+    const recyc = pop.decomposers * 0.02;
+    pop.producers += ap * 5 + recyc - pop.consumers * 0.05;
+    pop.consumers += ac * 2 + pop.producers * 0.02 - pop.consumers * 0.04;
+    pop.decomposers += ad * 1 + (pop.producers + pop.consumers) * 0.01 - pop.decomposers * 0.03;
+    pop.producers = Math.max(0, pop.producers);
+    pop.consumers = Math.max(0, pop.consumers);
+    pop.decomposers = Math.max(0, pop.decomposers);
+    turn++;
+    if (pop.producers < 5 || pop.consumers < 5 || pop.decomposers < 5) {
+      fb.textContent = 'Ecosystem collapsed at turn ' + turn + '. A balanced flow of energy is essential.';
+      fb.className='feedback bad';
+      render();
+      document.getElementById('bs-step').disabled = true;
+      return;
+    }
+    if (turn >= 30) {
+      fb.textContent = 'You sustained the biome 30 turns! Notice how energy flows from producers → consumers, while decomposers recycle nutrients.';
+      fb.className='feedback good';
+      render();
+      document.getElementById('bs-step').disabled = true;
+      return;
+    }
+    render();
+  }
+  render();
+})();
+
+/* ===== Quiz ===== */
+buildQuiz('quizRoot', [
+  { q:'Carrying capacity (K) refers to:', options:['Max number of offspring','Maximum population an environment can sustain','Birth rate per year','Mass of a population'], answer:1, explain:'K is set by limiting resources — food, space, water. Population growth slows as N approaches K (logistic curve).' },
+  { q:'In a typical food chain, energy:', options:['Increases as it moves up trophic levels','Decreases (~10% transfer between levels)','Stays the same','Reverses direction'], answer:1, explain:'Roughly 90% of energy is lost as heat or unused biomass between trophic levels — that\'s why food chains rarely exceed 4-5 levels.' },
+  { q:'Producers in most ecosystems are:', options:['Predators','Photosynthetic organisms (plants, algae, cyanobacteria)','Decomposers','Carnivores'], answer:1, explain:'Producers fix energy from sunlight (or chemosynthesis) into organic molecules — the base of the food web.' },
+  { q:'Decomposers are important because they:', options:['Eat producers','Recycle nutrients from dead organisms back into the soil','Photosynthesise','Are top predators'], answer:1, explain:'Bacteria and fungi return carbon, nitrogen, phosphorus etc. to inorganic form so producers can use them again.' },
+  { q:'A keystone species is one that:', options:['Is the most common','Has a disproportionately large effect on community structure','Is at the top of the food chain','Is a producer'], answer:1, explain:'Example: sea otters protecting kelp forests by eating sea urchins. Removing the keystone collapses the community structure.' },
+  { q:'In Lotka-Volterra dynamics, when prey population rises:', options:['Predators decline','Predators rise (more food)','Both crash','Nothing happens'], answer:1, explain:'More prey → predators have more food → predators reproduce → predators rise (with a lag).' },
+  { q:'Density-dependent factors include:', options:['Floods and storms','Competition, predation, disease','Sunlight','Temperature only'], answer:1, explain:'Density-dependent: effect strengthens as population grows. Density-independent: e.g. weather, natural disasters.' },
+  { q:'A niche is:', options:['A type of plant','The role and position of a species in its ecosystem','A predator','A nest'], answer:1, explain:'Niche includes habitat, resources used, interactions — fundamental vs. realised niche due to competition.' },
+  { q:'Eutrophication results from:', options:['Too little nutrient runoff','Excess nutrients causing algal blooms and oxygen depletion','Drought','Volcanic activity'], answer:1, explain:'Nitrogen and phosphorus runoff fuels algal blooms; when algae die, decomposition consumes oxygen — fish kills.' },
+  { q:'Biodiversity is generally highest in:', options:['Tundra','Deserts','Tropical rainforests','Polar oceans'], answer:2, explain:'Warm, wet, stable, productive ecosystems support more species — tropical rainforests are the richest terrestrial biomes.' },
+  { q:'A primary consumer is:', options:['A plant','A herbivore eating producers','A top predator','A scavenger only'], answer:1, explain:'Primary consumers eat producers (e.g. rabbit, grasshopper). Secondary consumers eat them.' },
+  { q:'In the Lotka-Volterra model, β represents:', options:['Rabbit birth rate','Predation efficiency (predator-prey encounters that kill prey)','Fox death rate','Carrying capacity'], answer:1, explain:'β is the predation rate constant — how often predator-prey encounters reduce prey numbers.' }
+]);
+</script>
+</body>
+</html>

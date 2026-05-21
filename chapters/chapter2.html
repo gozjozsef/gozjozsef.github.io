@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Chapter 2 — Cell Division</title>
+<link rel="stylesheet" href="../style.css"/>
+</head>
+<body>
+
+<div class="chapter-shell">
+
+  <div class="chapter-header theme-mitosis">
+    <a href="../index.html" class="back">← Back to main menu</a>
+    <h1>Chapter 2 · Cell Division</h1>
+    <p>Mitosis &amp; meiosis, checkpoints, and how unchecked division becomes cancer.</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-target="g1">Game 1 · Mitosis Sorter</button>
+    <button class="tab" data-target="g2">Game 2 · Checkpoint Charlie</button>
+    <button class="tab" data-target="g3">Game 3 · Tumour Tower Defence</button>
+    <button class="tab" data-target="quiz">Final Test</button>
+  </div>
+
+  <!-- ============ GAME 1: Mitosis Sorter ============ -->
+  <section id="g1" class="panel active">
+    <div class="game-card">
+      <h2>Mitosis Sorter</h2>
+      <p class="lede">Drag each stage card into the correct order. Then try the harder Meiosis round.</p>
+      <div id="ms-stage"></div>
+      <div class="hud"><span>Mode: <b id="ms-mode">Mitosis</b></span><span>Round score: <b id="ms-score">—</b></span></div>
+      <p class="feedback" id="ms-feedback"></p>
+      <button class="btn" id="ms-check">Check order</button>
+      <button class="btn btn-secondary" id="ms-meiosis">Switch to meiosis</button>
+    </div>
+  </section>
+
+  <!-- ============ GAME 2: Checkpoint Charlie ============ -->
+  <section id="g2" class="panel">
+    <div class="game-card">
+      <h2>Checkpoint Charlie</h2>
+      <p class="lede">A cell arrives at each checkpoint. Read its status and decide: <strong>repair</strong>, <strong>arrest</strong>, or <strong>proceed</strong>.</p>
+      <div id="cc-stage"></div>
+      <div class="hud"><span>Cells reviewed: <b id="cc-n">0</b></span><span>Correct calls: <b id="cc-correct">0</b></span></div>
+      <p class="feedback" id="cc-feedback"></p>
+    </div>
+  </section>
+
+  <!-- ============ GAME 3: Tumour Tower Defence ============ -->
+  <section id="g3" class="panel">
+    <div class="game-card">
+      <h2>Tumour Tower Defence</h2>
+      <p class="lede">Cancer cells march from the tissue edge toward a blood vessel — if they reach it they metastasise.
+        Click empty spots to deploy immune cells (T cells, NK cells). Each costs ATP.</p>
+      <div class="hud">
+        <span>ATP: <b id="tw-atp">100</b></span>
+        <span class="bad">Escapes: <b id="tw-esc">0</b>/5</span>
+        <span class="good">Tumours destroyed: <b id="tw-kills">0</b></span>
+      </div>
+      <canvas id="towerCanvas" width="800" height="400"></canvas>
+      <p class="feedback" id="tw-feedback"></p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        <button class="btn" id="tw-tcell">Buy T cell (30 ATP)</button>
+        <button class="btn btn-secondary" id="tw-nk">Buy NK cell (50 ATP)</button>
+        <button class="btn btn-ghost" id="tw-start">Start / Restart</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ QUIZ ============ -->
+  <section id="quiz" class="panel">
+    <div class="quiz" id="quizRoot">
+      <h2>Final Test — Cell Division</h2>
+    </div>
+  </section>
+</div>
+
+<script src="../js/config.js"></script>
+<script src="../js/leaderboard.js"></script>
+<script src="../js/chapter.js"></script>
+<script>
+
+/* ===== GAME 1: Mitosis Sorter ===== */
+(function(){
+  const stages = {
+    mitosis: [
+      { name:'Interphase', desc:'DNA replication, organelle duplication.' },
+      { name:'Prophase', desc:'Chromosomes condense, nuclear envelope breaks down.' },
+      { name:'Metaphase', desc:'Chromosomes align at the equatorial plate.' },
+      { name:'Anaphase', desc:'Sister chromatids separate to opposite poles.' },
+      { name:'Telophase', desc:'Nuclear envelopes reform around each set.' },
+      { name:'Cytokinesis', desc:'Cytoplasm divides — two daughter cells.' }
+    ],
+    meiosis: [
+      { name:'Interphase', desc:'DNA replicates once.' },
+      { name:'Prophase I', desc:'Homologous chromosomes pair; crossing over occurs.' },
+      { name:'Metaphase I', desc:'Homologous pairs line up at equator.' },
+      { name:'Anaphase I', desc:'Homologous chromosomes separate (reduction division).' },
+      { name:'Telophase I & Cytokinesis', desc:'Two haploid cells form.' },
+      { name:'Prophase II', desc:'Chromosomes recondense in each daughter.' },
+      { name:'Metaphase II', desc:'Chromosomes line up at equator of each cell.' },
+      { name:'Anaphase II', desc:'Sister chromatids finally separate.' },
+      { name:'Telophase II & Cytokinesis', desc:'Four genetically distinct haploid gametes.' }
+    ]
+  };
+
+  let mode = 'mitosis';
+  const stage = document.getElementById('ms-stage');
+  const fb = document.getElementById('ms-feedback');
+
+  function shuffle(a){return a.slice().sort(()=>Math.random()-0.5);}
+
+  function render(){
+    document.getElementById('ms-mode').textContent = mode === 'mitosis' ? 'Mitosis' : 'Meiosis';
+    const order = shuffle(stages[mode]);
+    stage.innerHTML = `<p style="color:var(--ink-soft);font-size:13px">Drag to reorder. The first card should be the earliest stage.</p>` +
+      `<div id="ms-list" class="dropzone" style="flex-direction:column;align-items:stretch">` +
+      order.map((s,i)=>`<div class="draggable" draggable="true" data-name="${s.name}"><strong>${s.name}</strong> — <span style="color:var(--ink-soft);font-size:13px">${s.desc}</span></div>`).join('') +
+      `</div>`;
+    addDnD();
+  }
+
+  function addDnD(){
+    const list = document.getElementById('ms-list');
+    let dragged = null;
+    list.querySelectorAll('.draggable').forEach(d=>{
+      d.addEventListener('dragstart', e=>{ dragged = d; d.classList.add('dragging'); });
+      d.addEventListener('dragend', ()=>{ d.classList.remove('dragging'); });
+      d.addEventListener('dragover', e=>{
+        e.preventDefault();
+        const rect = d.getBoundingClientRect();
+        const after = (e.clientY - rect.top) > rect.height/2;
+        if (after) d.parentNode.insertBefore(dragged, d.nextSibling);
+        else d.parentNode.insertBefore(dragged, d);
+      });
+    });
+  }
+
+  document.getElementById('ms-check').addEventListener('click', ()=>{
+    const got = [...document.querySelectorAll('#ms-list .draggable')].map(d=>d.dataset.name);
+    const exp = stages[mode].map(s=>s.name);
+    let correct = 0;
+    got.forEach((n,i)=>{ if(n===exp[i]) correct++; });
+    document.getElementById('ms-score').textContent = `${correct}/${exp.length}`;
+    if(correct === exp.length){
+      fb.textContent = 'Perfect ordering! Notice how meiosis differs by having two rounds and only one DNA replication.';
+      fb.className = 'feedback good';
+    } else {
+      fb.textContent = `${correct}/${exp.length} correct. Remember: Prophase → Metaphase → Anaphase → Telophase. (PMAT)`;
+      fb.className = 'feedback bad';
+    }
+  });
+
+  document.getElementById('ms-meiosis').addEventListener('click', ()=>{
+    mode = mode === 'mitosis' ? 'meiosis' : 'mitosis';
+    document.getElementById('ms-meiosis').textContent = mode === 'mitosis' ? 'Switch to meiosis' : 'Switch to mitosis';
+    fb.textContent = ''; render();
+  });
+
+  render();
+})();
+
+/* ===== GAME 2: Checkpoint Charlie ===== */
+(function(){
+  const scenarios = [
+    { stage:'G1', dna:'Intact', size:'Normal', nutrients:'Plentiful',  correct:'proceed', why:'G1: cell is healthy and well-fed — green-light entry to S phase.' },
+    { stage:'G1', dna:'Mild damage', size:'Normal', nutrients:'Plentiful',  correct:'repair', why:'G1: p53 detects DNA damage and triggers repair before replication.' },
+    { stage:'G1', dna:'Severe damage', size:'Normal', nutrients:'Plentiful',  correct:'arrest', why:'G1: severe damage → cell goes into senescence or undergoes apoptosis (p53-mediated).' },
+    { stage:'G2', dna:'Replicated cleanly', size:'Large', nutrients:'OK',  correct:'proceed', why:'G2: DNA is duplicated correctly — proceed to mitosis.' },
+    { stage:'G2', dna:'Unreplicated stretches', size:'Large', nutrients:'OK',  correct:'arrest', why:'G2: incomplete replication must be finished before mitosis or chromosomes will break.' },
+    { stage:'M (spindle)', dna:'Aligned at equator', size:'OK', nutrients:'OK', correct:'proceed', why:'Spindle checkpoint: all kinetochores attached to spindle fibers — anaphase can begin.' },
+    { stage:'M (spindle)', dna:'One chromosome unattached', size:'OK', nutrients:'OK', correct:'arrest', why:'Spindle checkpoint: an unattached kinetochore inhibits APC/C → anaphase is delayed (prevents aneuploidy).' },
+    { stage:'G1', dna:'Intact', size:'Small', nutrients:'Scarce', correct:'arrest', why:'G1: cell is too small and starved — enters G0 (quiescence) until conditions improve.' }
+  ];
+  let idx = 0, reviewed = 0, correct = 0;
+  const stage = document.getElementById('cc-stage');
+  const fb = document.getElementById('cc-feedback');
+
+  function show(){
+    const s = scenarios[idx % scenarios.length];
+    stage.innerHTML = `
+      <div style="background:var(--bg);padding:18px;border-radius:8px;margin-bottom:12px">
+        <p><strong>Checkpoint:</strong> ${s.stage}</p>
+        <p style="font-family:monospace;font-size:13px;color:var(--ink-soft)">
+          DNA: ${s.dna}<br/>Size: ${s.size}<br/>Nutrients: ${s.nutrients}
+        </p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" data-c="proceed">Proceed</button>
+        <button class="btn btn-secondary" data-c="repair">Repair</button>
+        <button class="btn btn-danger" data-c="arrest">Arrest / Apoptose</button>
+      </div>`;
+    stage.querySelectorAll('button[data-c]').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        reviewed++;
+        if (b.dataset.c === s.correct) { correct++; fb.textContent = 'Correct — ' + s.why; fb.className='feedback good'; }
+        else { fb.textContent = 'Not quite — ' + s.why; fb.className='feedback bad'; }
+        document.getElementById('cc-n').textContent = reviewed;
+        document.getElementById('cc-correct').textContent = correct;
+        idx++;
+        setTimeout(show, 1500);
+      });
+    });
+  }
+  show();
+})();
+
+/* ===== GAME 3: Tumour Tower Defence ===== */
+(function(){
+  const canvas = document.getElementById('towerCanvas');
+  const ctx = fitCanvas(canvas, 800, 400);
+  const W=800, H=400;
+  let game;
+
+  function reset(){
+    game = {
+      running:false, atp:100, esc:0, kills:0, mode:'tcell',
+      tumours:[], towers:[], lastSpawn:0, spawnInt:2000, t:0
+    };
+    updateHUD();
+  }
+  function updateHUD(){
+    document.getElementById('tw-atp').textContent = game.atp;
+    document.getElementById('tw-esc').textContent = game.esc;
+    document.getElementById('tw-kills').textContent = game.kills;
+  }
+  reset();
+
+  document.getElementById('tw-tcell').addEventListener('click', ()=>{ game.mode='tcell'; });
+  document.getElementById('tw-nk').addEventListener('click', ()=>{ game.mode='nk'; });
+  document.getElementById('tw-start').addEventListener('click', ()=>{
+    reset(); game.running = true;
+    document.getElementById('tw-feedback').textContent='Place towers to intercept tumour cells before they reach the right edge (blood vessel).';
+    document.getElementById('tw-feedback').className='feedback';
+  });
+
+  canvas.addEventListener('click', e=>{
+    if (!game.running) return;
+    const r = canvas.getBoundingClientRect();
+    const x = (e.clientX - r.left) * (W/r.width);
+    const y = (e.clientY - r.top) * (H/r.height);
+    const cost = game.mode === 'tcell' ? 30 : 50;
+    if (game.atp < cost) {
+      document.getElementById('tw-feedback').textContent = 'Not enough ATP. Killing tumours rewards 20 ATP each.';
+      document.getElementById('tw-feedback').className='feedback bad';
+      return;
+    }
+    game.atp -= cost;
+    game.towers.push({
+      x, y,
+      range: game.mode === 'tcell' ? 80 : 120,
+      cooldown: 0,
+      fireRate: game.mode === 'tcell' ? 700 : 1100,
+      dmg: game.mode === 'tcell' ? 1 : 2,
+      kind: game.mode
+    });
+    updateHUD();
+  });
+
+  let last = performance.now();
+  function frame(now){
+    const dt = now - last; last = now;
+    if (game.running) {
+      game.t += dt;
+      game.lastSpawn += dt;
+      if (game.lastSpawn > game.spawnInt) {
+        game.lastSpawn = 0;
+        game.spawnInt = Math.max(700, game.spawnInt - 15);
+        game.tumours.push({ x:-20, y: 40 + Math.random()*(H-80), hp:3, speed: 0.3 + Math.random()*0.5 });
+      }
+      // Move tumours
+      for (let i = game.tumours.length-1; i>=0; i--){
+        const t = game.tumours[i];
+        t.x += t.speed * (dt/16);
+        if (t.x > W) { game.tumours.splice(i,1); game.esc++; }
+      }
+      if (game.esc >= 5) {
+        game.running = false;
+        document.getElementById('tw-feedback').textContent = 'Cancer cells metastasised. In reality, immunosurveillance failure is one factor in tumour escape.';
+        document.getElementById('tw-feedback').className = 'feedback bad';
+      }
+      // Towers fire
+      for (const tw of game.towers){
+        tw.cooldown -= dt;
+        if (tw.cooldown <= 0) {
+          // Find nearest tumour in range
+          let best=null, bd=Infinity;
+          for (const t of game.tumours){
+            const d = Math.hypot(t.x - tw.x, t.y - tw.y);
+            if (d < tw.range && d < bd){ best = t; bd = d; }
+          }
+          if (best) {
+            best.hp -= tw.dmg;
+            tw.cooldown = tw.fireRate;
+            tw.flash = best;
+            if (best.hp <= 0) {
+              game.tumours.splice(game.tumours.indexOf(best),1);
+              game.kills++; game.atp += 20;
+            }
+          }
+        }
+      }
+      updateHUD();
+    }
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  function draw(){
+    ctx.fillStyle='#1a2433'; ctx.fillRect(0,0,W,H);
+    // Blood vessel on right
+    ctx.fillStyle='#a8324a'; ctx.fillRect(W-12, 0, 12, H);
+    // Tumours
+    for (const t of game.tumours){
+      ctx.fillStyle='#9d4edd';
+      ctx.beginPath(); ctx.arc(t.x, t.y, 12, 0, Math.PI*2); ctx.fill();
+      // HP bar
+      ctx.fillStyle='#555';ctx.fillRect(t.x-12,t.y-18,24,4);
+      ctx.fillStyle='#ff6680';ctx.fillRect(t.x-12,t.y-18,24*(t.hp/3),4);
+    }
+    // Towers
+    for (const tw of game.towers){
+      ctx.strokeStyle='rgba(123,224,200,.2)';
+      ctx.beginPath(); ctx.arc(tw.x,tw.y,tw.range,0,Math.PI*2); ctx.stroke();
+      ctx.fillStyle = tw.kind === 'tcell' ? '#7be0c8' : '#ffb86b';
+      ctx.beginPath(); ctx.arc(tw.x,tw.y,10,0,Math.PI*2); ctx.fill();
+      if (tw.flash){
+        ctx.strokeStyle = '#fff';
+        ctx.beginPath(); ctx.moveTo(tw.x,tw.y); ctx.lineTo(tw.flash.x, tw.flash.y); ctx.stroke();
+        tw.flash = null;
+      }
+    }
+  }
+  requestAnimationFrame(frame);
+})();
+
+/* ===== QUIZ ===== */
+buildQuiz('quizRoot', [
+  { q: 'During which phase does DNA replication occur?', options:['G1','S','G2','M'], answer:1, explain:'S phase = synthesis. DNA is replicated, producing sister chromatids joined at the centromere.' },
+  { q: 'In mitosis, the daughter cells are:', options:['Genetically identical and diploid','Haploid gametes','Halved in chromosome number','Genetically different'], answer:0, explain:'Mitosis produces two genetically identical diploid daughter cells.' },
+  { q: 'Crossing over happens during:', options:['Prophase of mitosis','Prophase I of meiosis','Anaphase II','Cytokinesis'], answer:1, explain:'Homologous chromosomes form bivalents and exchange segments at chiasmata during Prophase I.' },
+  { q: 'The G1/S checkpoint mainly checks:', options:['Whether chromosomes are aligned','Whether DNA is damaged and cell size/nutrients are adequate','Whether the spindle has attached','Whether mitochondria are split evenly'], answer:1, explain:'p53 monitors DNA damage; cyclin/CDK levels and cell size also gate S-phase entry.' },
+  { q: 'Sister chromatids separate at:', options:['Metaphase','Anaphase','Telophase','Prophase'], answer:1, explain:'During anaphase, cohesin is cleaved and sister chromatids are pulled to opposite poles.' },
+  { q: 'Cancer cells differ from normal cells because they:', options:['Always die quickly','Ignore checkpoint signals and divide uncontrollably','Have no DNA','Cannot replicate'], answer:1, explain:'Mutations in proto-oncogenes and tumour suppressors (like p53) let cancer cells bypass checkpoints.' },
+  { q: 'How many cells result from one round of meiosis?', options:['2 diploid','2 haploid','4 diploid','4 haploid'], answer:3, explain:'Meiosis I halves the chromosome number; meiosis II separates sister chromatids — final result is 4 haploid cells.' },
+  { q: 'A tumour suppressor gene:', options:['Promotes division','Inhibits cell-cycle progression and triggers repair or apoptosis','Codes for spindle fibres','Replicates DNA'], answer:1, explain:'Tumour suppressors (e.g. p53, Rb) brake the cell cycle. Loss of function contributes to cancer.' },
+  { q: 'Cytokinesis differs between animal and plant cells because:', options:['Plant cells form a cell plate; animal cells pinch via a contractile ring','Plant cells use centrioles','Animal cells form a cell wall','It does not happen in plants'], answer:0, explain:'Plant cells deposit vesicles along the equator to form a new cell wall; animal cells use actin–myosin to constrict.' },
+  { q: 'Which event is unique to meiosis I compared with mitosis?', options:['Spindle formation','Pairing of homologous chromosomes (synapsis)','Sister chromatid separation','Cytokinesis'], answer:1, explain:'Homologous chromosome pairing and crossing over occur only in prophase I of meiosis.' },
+  { q: 'CDKs (cyclin-dependent kinases) regulate the cell cycle by:', options:['Cutting DNA','Phosphorylating target proteins when bound to cyclins','Forming the nuclear envelope','Acting as mRNA'], answer:1, explain:'CDKs only become active when bound to cyclins. They phosphorylate proteins that drive progression through cell-cycle stages.' },
+  { q: 'The spindle assembly checkpoint prevents:', options:['Uneven chromosome distribution (aneuploidy)','DNA replication','RNA splicing','Nuclear envelope formation'], answer:0, explain:'It delays anaphase until every kinetochore is attached to spindle fibres, ensuring equal segregation.' }
+]);
+</script>
+</body>
+</html>
