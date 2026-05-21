@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Leaderboard — Biology Game Collection</title>
+<link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+<div class="chapter-shell lb-page">
+  <a href="index.html" style="font-size:13px;color:var(--ink-soft)">← Back to main menu</a>
+  <h1 style="font-family:var(--font-serif);font-size:42px;margin:10px 0 4px">🏆 Leaderboard</h1>
+  <p style="color:var(--ink-soft);margin:0">Top scores across the class. Sign in with Google and finish a chapter's final test to land on the board.</p>
+
+  <div class="lb-controls">
+    <label>Chapter:
+      <select id="lb-filter">
+        <option value="all">All chapters</option>
+        <option value="chapter1">Ch 1 — Immune System</option>
+        <option value="chapter2">Ch 2 — Cell Division</option>
+        <option value="chapter3">Ch 3 — DNA / PCR / Gel</option>
+        <option value="chapter4">Ch 4 — Enzymes</option>
+        <option value="chapter5">Ch 5 — Genetics</option>
+        <option value="chapter6">Ch 6 — Gene Expression / CRISPR</option>
+        <option value="chapter7">Ch 7 — Ecology</option>
+        <option value="chapter8">Ch 8 — Spectrophotometry</option>
+      </select>
+    </label>
+    <button class="btn btn-secondary" id="lb-refresh">Refresh</button>
+  </div>
+
+  <div id="lb-status" style="color:var(--ink-soft);font-size:14px;margin-bottom:10px"></div>
+  <div id="lb-content"></div>
+
+  <p class="note" style="margin-top:30px">
+    <strong>For Gőz tanár úr:</strong> The leaderboard stores name, profile picture, score and chapter in Firebase Firestore (JSON documents). Anyone signed in can read; users can only write their own scores. Setup instructions live in <code>js/config.js</code>.
+  </p>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/leaderboard.js"></script>
+<script>
+const filter = document.getElementById('lb-filter');
+const content = document.getElementById('lb-content');
+const status = document.getElementById('lb-status');
+
+async function load(){
+  if (!window.BioLB.enabled) {
+    status.textContent = '';
+    content.innerHTML = `<div class="lb-empty">
+      <p style="font-size:18px"><strong>Leaderboard not configured yet.</strong></p>
+      <p>Open <code>js/config.js</code> in this folder and follow the 6-step setup to connect Firebase. Until then, scores aren't recorded — but the games still work fine.</p>
+    </div>`;
+    return;
+  }
+  if (!window.BioLB.user) {
+    status.textContent = 'Sign in with Google (top right) to view and contribute to the leaderboard.';
+    content.innerHTML = '';
+    return;
+  }
+  status.textContent = 'Loading scores…';
+  try {
+    const rows = await window.BioLB.fetchTop({ chapter: filter.value, lim: 50 });
+    if (!rows.length) {
+      content.innerHTML = `<div class="lb-empty">No scores yet. Finish a chapter's final test to be the first!</div>`;
+      status.textContent = '';
+      return;
+    }
+    const myUid = window.BioLB.user && window.BioLB.user.uid;
+    content.innerHTML = `<table class="lb-table">
+      <thead><tr><th class="lb-rank">#</th><th>Player</th><th>Chapter</th><th>ATP</th><th>When</th></tr></thead>
+      <tbody>${rows.map((r,i)=>{
+        const rankClass = i===0?'top1':i===1?'top2':i===2?'top3':'';
+        const dt = r.createdAt && r.createdAt.toDate ? r.createdAt.toDate().toLocaleString() : '';
+        const mine = r.uid === myUid ? 'lb-mine' : '';
+        return `<tr class="${mine}">
+          <td class="lb-rank ${rankClass}">${i+1}</td>
+          <td><div class="lb-row-name"><img src="${r.photo||''}" alt=""/>${r.name||'Anonymous'}</div></td>
+          <td>${r.chapter}</td>
+          <td><strong>${r.score}</strong> <i class="atp-icon"></i> <span style="color:var(--ink-soft);font-size:12px">/ ${r.total}</span></td>
+          <td style="color:var(--ink-soft);font-size:12px">${dt}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+    status.textContent = `Showing top ${rows.length} score(s).`;
+  } catch (e) {
+    status.textContent = '';
+    content.innerHTML = `<div class="lb-empty">Could not load scores: ${e.message || e}</div>`;
+  }
+}
+
+filter.addEventListener('change', load);
+document.getElementById('lb-refresh').addEventListener('click', load);
+window.BioLB.onAuthChange(load);
+</script>
+</body>
+</html>
